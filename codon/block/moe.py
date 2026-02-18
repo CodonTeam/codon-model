@@ -1,0 +1,126 @@
+import torch.nn.functional as F
+
+from codon.base  import *
+from dataclasses import dataclass
+from typing      import Union
+
+
+@dataclass
+class MoEOutput:
+    output: torch.Tensor
+    aux_loss: Union[torch.Tensor, None]
+
+@dataclass
+class MoECount:
+    total_count: int
+    active_count: int
+
+
+class Expert(BasicModel):
+    def __init__(self, in_features:int, hidden_features:int, out_features:int, dropout:float=0.1):
+        super().__init__()
+        self.in_features = in_features
+        self.hidden_features = hidden_features
+        self.out_features = out_features
+
+        self.f1 = nn.Linear(in_features, hidden_features)
+        self.f2 = nn.Linear(hidden_features, out_features)
+        self.act = nn.SiLU(inplace=True)
+        self.dropout = nn.Dropout(dropout, inplace=True)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.f2(self.dropout(self.act(self.f1(x))))
+
+
+class MoE(BasicModel):
+    def __init__(self, model_dim:int, top_k:int, num_experts:int, num_shared_experts:int=0, use_aux_loss:bool=False):
+        super().__init__()
+        self.model_dim = model_dim
+        self.top_k = top_k
+        self.num_experts = num_experts
+        self.num_shared_experts = num_shared_experts
+        self.use_aux_loss = use_aux_loss
+
+        hidden_dim = model_dim * 4
+
+        self.experts = nn.ModuleList([
+            Expert(model_dim, hidden_dim, model_dim) for _ in range(num_experts)
+        ])
+
+        self.shared_experts = None
+        if num_shared_experts > 0:
+            self.shared_experts = nn.ModuleList([
+                Expert(model_dim, hidden_dim, model_dim) for _ in range(num_shared_experts)
+            ])
+        
+        self.gate = nn.Linear(model_dim, num_experts, bias=False)
+    
+    @property
+    def info(self) -> MoECount:
+        def get_params_count(module: nn.Module) -> int:
+            return sum(p.numel() for p in module.parameters())
+
+        gate_params = get_params_count(self.gate)
+
+        shared_params = 0
+        if self.shared_experts is not None:
+            shared_params = get_params_count(self.shared_experts)
+
+        expert_params = 0
+        if len(self.experts) > 0:
+            expert_params = get_params_count(self.experts[0])
+
+        total_routed_params = get_params_count(self.experts)
+        
+        active_routed_params = expert_params * self.top_k
+
+        total_count = gate_params + shared_params + total_routed_params
+        active_count = gate_params + shared_params + active_routed_params
+
+        return MoECount(total_count=total_count, active_count=active_count)
+
+    def forward(self, x: torch.Tensor) -> MoEOutput:
+        original_shape = x.shape
+        # [Batch, Seq, Dim] -> [Total_Tokens, Dim]
+        x_flat = x.reshape(-1, self.model_dim)
+
+        shared_output = torch.zeros_like(x_flat)
+        if self.shared_experts is not None:
+            for expert in self.shared_experts: shared_output = shared_output + expert(x_flat)
+        
+        # logits: [Total_Tokens, Num_Experts]
+        router_logits = self.gate(x_flat)
+        routing_probs = F.softmax(router_logits, dim=-1)
+
+        # topk_weights: [Total_Tokens, Top_K]
+        # topk_indices: [Total_Tokens, Top_K]
+        topk_weights, topk_indices = torch.topk(routing_probs, self.top_k, dim=-1)
+        topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
+
+        # Auxiliary Loss / Load Balancing Loss
+        aux_loss = None
+        if self.use_aux_loss and self.training:
+            density_1 = routing_probs.mean(dim=0)
+            
+            mask = torch.zeros_like(routing_probs)
+            mask.scatter_(1, topk_indices, 1.0)
+            density_1_proxy = mask.mean(dim=0)
+            
+            aux_loss = (self.num_experts * (density_1 * density_1_proxy).sum())
+
+        routed_output = torch.zeros_like(x_flat)
+        for i, expert in enumerate(self.experts):
+            batch_idx, nth_choice = torch.where(topk_indices == i)
+            
+            if batch_idx.numel() == 0: continue
+            # [Num_Selected, Model_Dim]
+            current_inputs = x_flat[batch_idx]
+            current_expert_output = expert(current_inputs)
+            # [Num_Selected, 1]
+            current_weights = topk_weights[batch_idx, nth_choice].unsqueeze(-1)
+            routed_output.index_add_(0, batch_idx, current_expert_output * current_weights)
+            
+        final_output = routed_output + shared_output
+        # [Batch, Seq, Dim]
+        final_output = final_output.reshape(original_shape)
+        return MoEOutput(output=final_output, aux_loss=aux_loss)
