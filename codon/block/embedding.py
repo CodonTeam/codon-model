@@ -3,7 +3,7 @@ from codon.base import *
 
 class RotaryPositionalEmbedding(BasicModel):
     '''
-    旋转位置编码 (Rotary Positional Embedding, RoPE)。
+    Rotary Positional Embedding
     '''
 
     def __init__(self, model_dim: int, max_len: int = 128000, base: int = 10000):

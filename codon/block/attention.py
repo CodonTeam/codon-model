@@ -27,7 +27,6 @@ def apply_attention(
     dropout: float = 0.0
 ) -> AttentionOutput:
     ''' 计算缩放点积注意力。
-
     Args:
         query_states (torch.Tensor): 查询状态张量。
         key_states (torch.Tensor): 键状态张量。
@@ -36,13 +35,37 @@ def apply_attention(
         output_attentions (bool, optional): 是否输出注意力权重。默认为 False。
         is_causal (bool, optional): 是否应用因果掩码。默认为 None。
         dropout (float, optional): Dropout 概率。默认为 0.0。
-
     Returns:
         AttentionOutput: 包含注意力输出和可选权重的对象。
     '''
     
+    if attention_mask is not None:
+        if attention_mask.dtype != torch.float32:
+            attention_mask = attention_mask.float()
+        
+        if attention_mask.max() <= 1.0:
+            attention_mask = torch.where(attention_mask == 0, float('-inf'), 0.0)
+        
+    if is_causal:
+        tgt_len = query_states.size(-2)
+        src_len = key_states.size(-2)
+        
+        causal_mask = torch.tril(
+            torch.ones((tgt_len, src_len), device=query_states.device, dtype=query_states.dtype)
+        ).view(1, 1, tgt_len, src_len)
+        
+        causal_mask = torch.where(causal_mask == 0, float('-inf'), 0.0)
+        
+        if attention_mask is not None:
+            attention_mask = attention_mask + causal_mask
+        else:
+            attention_mask = causal_mask
+        
+        is_causal = False
+        
     if not output_attentions:
-        if attention_mask is None and is_causal is None: is_causal = True
+        if attention_mask is None and is_causal is None: 
+            is_causal = True
         
         try:
             with sdpa_kernel([
@@ -54,24 +77,23 @@ def apply_attention(
                     query_states, 
                     key_states, 
                     value_states, 
-                    attn_mask=attention_mask if not is_causal else None, 
+                    attn_mask=attention_mask,
                     is_causal=is_causal,
                     dropout_p=dropout
                 )
             return AttentionOutput(output=output, attention_weights=None)
-        except RuntimeError: pass
-
+        except RuntimeError: 
+            pass
+    # Manual Fallback Path
     d_k = query_states.size(-1)
     scores = torch.matmul(query_states, key_states.transpose(-2, -1)) / math.sqrt(d_k)
 
     if attention_mask is not None:
-        scores = scores.masked_fill(attention_mask == 0, float('-inf'))
-
+        scores = scores + attention_mask
     attention_weights = torch.softmax(scores, dim=-1)
     
     if dropout > 0.0:
         attention_weights = F.dropout(attention_weights, p=dropout)
-
     output = torch.matmul(attention_weights, value_states)
     
     return AttentionOutput(output=output, attention_weights=attention_weights)
@@ -79,18 +101,16 @@ def apply_attention(
 
 class MultiHeadAttention(BasicModel):
     ''' 多头注意力机制模块。
-
     支持分组查询注意力 (GQA)、QK 归一化和门控机制。
-
     Args:
         hidden_size (int): 隐藏层大小。
         num_heads (int): 注意力头数。
         num_kv_heads (int, optional): 键/值头数，用于 GQA。如果为 None，则等于 num_heads。默认为 None。
         use_qk_norm (bool, optional): 是否对查询和键应用 RMSNorm。默认为 True。
         use_gate (bool, optional): 是否应用门控机制。默认为 False。
-        dropout (float, optional): Dropout 概率。默认为 0.0。
+        dropout (float, optional): Dropout 概率。默认为 0.1。
+        is_causal (bool, optional): 是否应用因果掩码。默认为 True (Decoder 架构)。
     '''
-
     def __init__(
         self,
         hidden_size,
@@ -98,7 +118,8 @@ class MultiHeadAttention(BasicModel):
         num_kv_heads=None,
         use_qk_norm=True,
         use_gate=False,
-        dropout=0.0
+        dropout=0.1,
+        is_causal=True
     ):
         super(MultiHeadAttention, self).__init__()
 
@@ -116,7 +137,8 @@ class MultiHeadAttention(BasicModel):
         self.use_qk_norm = use_qk_norm
         self.use_gate = use_gate
         self.dropout = dropout
-
+        self.is_causal = is_causal
+        
         if use_qk_norm:
             self.q_norm = nn.RMSNorm(self.head_dim)
             self.k_norm = nn.RMSNorm(self.head_dim)
@@ -128,7 +150,7 @@ class MultiHeadAttention(BasicModel):
         self.k_proj = nn.Linear(hidden_size, self.kv_dim)
         self.v_proj = nn.Linear(hidden_size, self.kv_dim)
         self.o_proj = nn.Linear(hidden_size, hidden_size)
-
+        
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -145,13 +167,13 @@ class MultiHeadAttention(BasicModel):
         Args:
             hidden_states (torch.Tensor): 输入隐藏状态。
             kv_states (torch.Tensor, optional): 用于键/值的隐藏状态。如果为 None，则使用 hidden_states。默认为 None。
-            attention_mask (torch.Tensor, optional): 注意力掩码。默认为 None。
+            attention_mask (torch.Tensor, optional): 注意力掩码 (通常为 Padding Mask)。默认为 None。
             output_attentions (bool, optional): 是否输出注意力权重。默认为 False。
             rotary_emb (RotaryPositionalEmbedding, optional): 旋转位置编码模块。默认为 None。
             rotary_pos (int, optional): 旋转位置编码的起始位置。默认为 0。
             past_key_value (tuple[torch.Tensor, torch.Tensor], optional): 过去的键值对缓存。默认为 None。
             use_cache (bool, optional): 是否使用 KV 缓存。默认为 False。
-
+        
         Returns:
             AttentionOutput: 包含输出、注意力权重和 KV 缓存的对象。
         '''
@@ -160,7 +182,7 @@ class MultiHeadAttention(BasicModel):
             kv_states = hidden_states
 
         batch_size, q_len, _ = hidden_states.shape
-        kv_len_input = kv_states.shape[1] 
+        kv_len_input = kv_states.shape[1]
 
         if self.use_gate:
             G = torch.sigmoid(self.g_proj(hidden_states))
@@ -172,7 +194,7 @@ class MultiHeadAttention(BasicModel):
         Q = Q.view(batch_size, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         K = K.view(batch_size, kv_len_input, self.num_kv_heads, self.head_dim).transpose(1, 2)
         V = V.view(batch_size, kv_len_input, self.num_kv_heads, self.head_dim).transpose(1, 2)
-
+        
         if self.use_qk_norm:
             Q = self.q_norm(Q)
             K = self.k_norm(K)
@@ -198,22 +220,21 @@ class MultiHeadAttention(BasicModel):
             
             K = K.reshape(batch_size, self.num_heads, kv_seq_len_total, self.head_dim)
             V = V.reshape(batch_size, self.num_heads, kv_seq_len_total, self.head_dim)
-
+            
         attn_output = apply_attention(
             Q, K, V, 
             attention_mask=attention_mask, 
             output_attentions=output_attentions,
+            is_causal=self.is_causal,
             dropout=self.dropout if self.training else 0.0
         )
+
         output = attn_output.output
         attention_weights = attn_output.attention_weights
-
         output = output.transpose(1, 2).contiguous().view(batch_size, q_len, self.hidden_size)
-
         output = self.o_proj(output)
 
-        if self.use_gate:
-            output = output * G
+        if self.use_gate: output = output * G
 
         return AttentionOutput(
             output=output,
