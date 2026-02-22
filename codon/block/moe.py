@@ -7,17 +7,44 @@ from typing      import Union
 
 @dataclass
 class MoEOutput:
+    '''
+    Output of the Mixture-of-Experts (MoE) model.
+
+    Args:
+        output (torch.Tensor): The final output tensor.
+        aux_loss (Union[torch.Tensor, None]): The auxiliary loss for load balancing.
+    '''
     output: torch.Tensor
     aux_loss: Union[torch.Tensor, None]
 
 @dataclass
 class MoECount:
+    '''
+    Parameter counts for the MoE model.
+
+    Args:
+        total_count (int): The total number of parameters.
+        active_count (int): The number of active parameters.
+    '''
     total_count: int
     active_count: int
 
 
 class Expert(BasicModel):
+    '''
+    A single expert module in the Mixture-of-Experts architecture.
+    Basically a feed-forward network with SiLU activation and dropout.
+    '''
     def __init__(self, in_features:int, hidden_features:int, out_features:int, dropout:float=0.1):
+        '''
+        Initialize the Expert module.
+
+        Args:
+            in_features (int): Number of input features.
+            hidden_features (int): Number of hidden features.
+            out_features (int): Number of output features.
+            dropout (float, optional): Dropout probability. Defaults to 0.1.
+        '''
         super().__init__()
         self.in_features = in_features
         self.hidden_features = hidden_features
@@ -29,11 +56,34 @@ class Expert(BasicModel):
         self.dropout = nn.Dropout(dropout, inplace=True)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        '''
+        Forward pass of the Expert module.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        '''
         return self.f2(self.dropout(self.act(self.f1(x))))
 
 
 class MoE(BasicModel):
+    '''
+    Mixture-of-Experts (MoE) module.
+    Includes support for shared experts and auxiliary loss for load balancing.
+    '''
     def __init__(self, model_dim:int, top_k:int, num_experts:int, num_shared_experts:int=0, use_aux_loss:bool=False):
+        '''
+        Initialize the MoE module.
+
+        Args:
+            model_dim (int): The dimension of the model.
+            top_k (int): Number of experts to route to for each token.
+            num_experts (int): Total number of experts.
+            num_shared_experts (int, optional): Number of shared experts. Defaults to 0.
+            use_aux_loss (bool, optional): Whether to use auxiliary loss for load balancing. Defaults to False.
+        '''
         super().__init__()
         self.model_dim = model_dim
         self.top_k = top_k
@@ -57,6 +107,12 @@ class MoE(BasicModel):
     
     @property
     def info(self) -> MoECount:
+        '''
+        Get parameter count information for the MoE module.
+
+        Returns:
+            MoECount: An object containing total and active parameter counts.
+        '''
         def get_params_count(module: nn.Module) -> int:
             return sum(p.numel() for p in module.parameters())
 
@@ -80,6 +136,15 @@ class MoE(BasicModel):
         return MoECount(total_count=total_count, active_count=active_count)
 
     def forward(self, x: torch.Tensor) -> MoEOutput:
+        '''
+        Forward pass of the MoE module.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [Batch, Seq, Dim].
+
+        Returns:
+            MoEOutput: Object containing the output tensor and optional auxiliary loss.
+        '''
         original_shape = x.shape
         # [Batch, Seq, Dim] -> [Total_Tokens, Dim]
         x_flat = x.reshape(-1, self.model_dim)

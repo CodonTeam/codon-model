@@ -12,6 +12,15 @@ from codon.block.embedding import RotaryPositionalEmbedding
 
 @dataclass
 class AttentionOutput:
+    '''
+    Output of the attention mechanism.
+
+    Args:
+        output (torch.Tensor): The output tensor from the attention mechanism.
+        attention_weights (Optional[torch.Tensor], optional): Attention weights. Defaults to None.
+        past_key_value (Optional[Tuple[torch.Tensor, torch.Tensor]], optional): 
+            Cached key and value tensors for autoregressive generation. Defaults to None.
+    '''
     output: torch.Tensor
     attention_weights: Optional[torch.Tensor] = None
     past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
@@ -26,17 +35,20 @@ def apply_attention(
     is_causal: bool = None,
     dropout: float = 0.0
 ) -> AttentionOutput:
-    ''' 计算缩放点积注意力。
+    ''' 
+    Compute scaled dot-product attention.
+
     Args:
-        query_states (torch.Tensor): 查询状态张量。
-        key_states (torch.Tensor): 键状态张量。
-        value_states (torch.Tensor): 值状态张量。
-        attention_mask (torch.Tensor, optional): 注意力掩码。默认为 None。
-        output_attentions (bool, optional): 是否输出注意力权重。默认为 False。
-        is_causal (bool, optional): 是否应用因果掩码。默认为 None。
-        dropout (float, optional): Dropout 概率。默认为 0.0。
+        query_states (torch.Tensor): Query states tensor.
+        key_states (torch.Tensor): Key states tensor.
+        value_states (torch.Tensor): Value states tensor.
+        attention_mask (torch.Tensor, optional): Attention mask. Defaults to None.
+        output_attentions (bool, optional): Whether to output attention weights. Defaults to False.
+        is_causal (bool, optional): Whether to apply a causal mask. Defaults to None.
+        dropout (float, optional): Dropout probability. Defaults to 0.0.
+
     Returns:
-        AttentionOutput: 包含注意力输出和可选权重的对象。
+        AttentionOutput: Object containing attention output and optional weights.
     '''
     
     if attention_mask is not None:
@@ -100,16 +112,21 @@ def apply_attention(
 
 
 class MultiHeadAttention(BasicModel):
-    ''' 多头注意力机制模块。
-    支持分组查询注意力 (GQA)、QK 归一化和门控机制。
+    ''' 
+    Multi-Head Attention module.
+    Supports Grouped Query Attention (GQA), QK Normalization, and Gating mechanisms.
+
     Args:
-        hidden_size (int): 隐藏层大小。
-        num_heads (int): 注意力头数。
-        num_kv_heads (int, optional): 键/值头数，用于 GQA。如果为 None，则等于 num_heads。默认为 None。
-        use_qk_norm (bool, optional): 是否对查询和键应用 RMSNorm。默认为 True。
-        use_gate (bool, optional): 是否应用门控机制。默认为 False。
-        dropout (float, optional): Dropout 概率。默认为 0.1。
-        is_causal (bool, optional): 是否应用因果掩码。默认为 True (Decoder 架构)。
+        hidden_size (int): Size of the hidden layer.
+        num_heads (int): Number of attention heads.
+        num_kv_heads (int, optional): Number of key/value heads for GQA. 
+                                      If None, defaults to num_heads.
+        use_qk_norm (bool, optional): Whether to apply RMSNorm to queries and keys. 
+                                      Defaults to True.
+        use_gate (bool, optional): Whether to apply a gating mechanism. Defaults to False.
+        dropout (float, optional): Dropout probability. Defaults to 0.1.
+        is_causal (bool, optional): Whether to apply a causal mask. 
+                                    Defaults to True (for Decoder architectures).
     '''
     def __init__(
         self,
@@ -162,20 +179,26 @@ class MultiHeadAttention(BasicModel):
         past_key_value: tuple[torch.Tensor, torch.Tensor] = None,
         use_cache: bool = False
     ) -> AttentionOutput:
-        ''' 执行多头注意力的前向传播。
+        ''' 
+        Perform forward pass of Multi-Head Attention.
 
         Args:
-            hidden_states (torch.Tensor): 输入隐藏状态。
-            kv_states (torch.Tensor, optional): 用于键/值的隐藏状态。如果为 None，则使用 hidden_states。默认为 None。
-            attention_mask (torch.Tensor, optional): 注意力掩码 (通常为 Padding Mask)。默认为 None。
-            output_attentions (bool, optional): 是否输出注意力权重。默认为 False。
-            rotary_emb (RotaryPositionalEmbedding, optional): 旋转位置编码模块。默认为 None。
-            rotary_pos (int, optional): 旋转位置编码的起始位置。默认为 0。
-            past_key_value (tuple[torch.Tensor, torch.Tensor], optional): 过去的键值对缓存。默认为 None。
-            use_cache (bool, optional): 是否使用 KV 缓存。默认为 False。
+            hidden_states (torch.Tensor): Input hidden states.
+            kv_states (torch.Tensor, optional): Hidden states for keys/values. 
+                                                If None, uses hidden_states. Defaults to None.
+            attention_mask (torch.Tensor, optional): Attention mask (usually Padding Mask). 
+                                                     Defaults to None.
+            output_attentions (bool, optional): Whether to output attention weights. 
+                                                Defaults to False.
+            rotary_emb (RotaryPositionalEmbedding, optional): Rotary positional embedding module. 
+                                                              Defaults to None.
+            rotary_pos (int, optional): Starting position for rotary embedding. Defaults to 0.
+            past_key_value (tuple[torch.Tensor, torch.Tensor], optional): Past key-value cache. 
+                                                                          Defaults to None.
+            use_cache (bool, optional): Whether to use KV cache. Defaults to False.
         
         Returns:
-            AttentionOutput: 包含输出、注意力权重和 KV 缓存的对象。
+            AttentionOutput: Object containing output, attention weights, and KV cache.
         '''
         
         if kv_states is None:

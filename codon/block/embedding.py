@@ -3,17 +3,18 @@ from codon.base import *
 
 class RotaryPositionalEmbedding(BasicModel):
     '''
-    Rotary Positional Embedding
+    Rotary Positional Embedding (RoPE).
     '''
 
-    def __init__(self, model_dim: int, max_len: int = 128000, base: int = 10000):
+    def __init__(self, model_dim: int, max_len: int = 128000, base: int = 50000):
         '''
-        初始化 RoPE 模块。
+        Initialize the RoPE module.
 
         Args:
-            model_dim (int): 模型的维度 (或 head_dim)。必须是偶数。
-            max_len (int, optional): 预计算位置编码的最大序列长度。默认为 128000。
-            base (int, optional): 计算频率的基数。默认为 10000。
+            model_dim (int): The dimension of the model (or head_dim). Must be even.
+            max_len (int, optional): Maximum sequence length for pre-computing position encodings. 
+                                     Defaults to 128000.
+            base (int, optional): Base for computing frequencies. Defaults to 50000.
         '''
         super(RotaryPositionalEmbedding, self).__init__()
 
@@ -34,32 +35,34 @@ class RotaryPositionalEmbedding(BasicModel):
 
     def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
         '''
-        将向量分为两半并旋转: [-x2, x1]。
-        无论输入是 3D 还是 4D，Split 都是作用在最后一维 (model_dim)。
+        Split the vector into two halves and rotate them: [-x2, x1].
+        The split operation is performed on the last dimension (model_dim),
+        regardless of whether the input is 3D or 4D.
 
         Args:
-            x (torch.Tensor): 输入张量。
+            x (torch.Tensor): Input tensor.
 
         Returns:
-            torch.Tensor: 旋转后的张量。
+            torch.Tensor: Rotated tensor.
         '''
         x1, x2 = x.chunk(2, dim=-1)
         return torch.cat((-x2, x1), dim=-1)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         '''
-        应用旋转位置编码。
+        Apply rotary positional encoding.
         
-        自动适配两种输入:
+        Automatically adapts to two types of inputs:
         1. [Batch, Seq_Len, Dim]
         2. [Batch, Head, Seq_Len, Head_Dim]
 
         Args:
-            x (torch.Tensor): 输入张量。
-            start_pos (int, optional): 起始位置索引，用于 KV Cache 推理。默认为 0。
+            x (torch.Tensor): Input tensor.
+            start_pos (int, optional): Starting position index for KV Cache inference.
+                                       Defaults to 0.
 
         Returns:
-            torch.Tensor: 添加了位置信息的张量。
+            torch.Tensor: Tensor with positional information added.
         '''
         ndim = x.ndim
         seq_len = x.shape[-2]
