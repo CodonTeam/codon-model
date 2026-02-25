@@ -18,7 +18,7 @@ class MoEOutput:
     aux_loss: Union[torch.Tensor, None]
 
 @dataclass
-class MoECount:
+class MoEInfo:
     '''
     Parameter counts for the MoE model.
 
@@ -105,13 +105,38 @@ class MoE(BasicModel):
         
         self.gate = nn.Linear(model_dim, num_experts, bias=False)
     
+    def count_params(self, trainable_only:bool=False, active_only:bool=False) -> int:
+        '''
+        Count the number of parameters in the model.
+        
+        Args:
+            trainable_only (bool, optional): If True, count only trainable parameters.
+            active_only (bool, optional): If True, count only active parameters (e.g. for MoE).
+            
+        Returns:
+            int: The total number of parameters.
+        '''
+        if not active_only:
+            return super().count_params(trainable_only, active_only)
+        
+        total = BasicModel._count_params_recursive(self.gate, trainable_only, active_only)
+        
+        if self.shared_experts is not None:
+            total += BasicModel._count_params_recursive(self.shared_experts, trainable_only, active_only)
+            
+        if len(self.experts) > 0:
+            single_expert_params = self.experts[0].count_params(trainable_only, active_only)
+            total += single_expert_params * self.top_k
+            
+        return total
+
     @property
-    def info(self) -> MoECount:
+    def info(self) -> MoEInfo:
         '''
         Get parameter count information for the MoE module.
 
         Returns:
-            MoECount: An object containing total and active parameter counts.
+            MoEInfo: An object containing total and active parameter counts.
         '''
         def get_params_count(module: nn.Module) -> int:
             return sum(p.numel() for p in module.parameters())
@@ -133,7 +158,7 @@ class MoE(BasicModel):
         total_count = gate_params + shared_params + total_routed_params
         active_count = gate_params + shared_params + active_routed_params
 
-        return MoECount(total_count=total_count, active_count=active_count)
+        return MoEInfo(total_count=total_count, active_count=active_count)
 
     def forward(self, x: torch.Tensor) -> MoEOutput:
         '''

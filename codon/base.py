@@ -72,15 +72,35 @@ class BasicModel(nn.Module):
             return (p for p in self.parameters() if p.requires_grad)
         return self.parameters()
     
-    def count_params(self, trainable_only:bool=False) -> int:
+    def count_params(self, trainable_only:bool=False, active_only:bool=False) -> int:
         '''
         Count the number of parameters in the model.
 
         Args:
             trainable_only (bool, optional): If True, count only trainable parameters.
                                              Defaults to False.
+            active_only (bool, optional): If True, count only active parameters (e.g. for MoE).
+                                          Defaults to False.
 
         Returns:
             int: The total number of parameters.
         '''
-        return sum(p.numel() for p in self.get_params(trainable_only))
+        if not active_only:
+            return sum(p.numel() for p in self.get_params(trainable_only))
+        
+        return self._count_params_recursive(self, trainable_only, active_only)
+
+    @staticmethod
+    def _count_params_recursive(module: nn.Module, trainable_only: bool, active_only: bool) -> int:
+        total = 0
+        for p in module.parameters(recurse=False):
+            if not trainable_only or p.requires_grad:
+                total += p.numel()
+        
+        for child in module.children():
+            if isinstance(child, BasicModel):
+                total += child.count_params(trainable_only, active_only)
+            else:
+                total += BasicModel._count_params_recursive(child, trainable_only, active_only)
+        
+        return total
