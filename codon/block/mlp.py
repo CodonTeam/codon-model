@@ -74,5 +74,4 @@ class MLP(BasicModel):
             x = self.act(x)
             x = self.dropout(x)
             x = self.fc2(x)
-            x = self.dropout(x)
             return x

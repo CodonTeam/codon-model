@@ -4,6 +4,8 @@ from codon.base  import *
 from dataclasses import dataclass
 from typing      import Union
 
+from codon.block.mlp import MLP
+
 
 @dataclass
 class MoEOutput:
@@ -30,18 +32,15 @@ class MoEInfo:
     active_count: int
 
 
-class Expert(BasicModel):
+class Expert(MLP):
     '''
     A single expert module in the Mixture-of-Experts architecture.
-    Basically a feed-forward network with SiLU activation and dropout.
+    Wraps the MLP module to provide consistent interface and default behavior.
 
     Attributes:
-        f1 (nn.Linear): First linear layer.
-        f2 (nn.Linear): Second linear layer.
-        act (nn.Module): Activation function (SiLU).
-        dropout (nn.Dropout): Dropout layer.
+        See codon.block.mlp.MLP for attributes.
     '''
-    def __init__(self, in_features:int, hidden_features:int, out_features:int, dropout:float=0.1):
+    def __init__(self, in_features: int, hidden_features: int, out_features: int, use_gate: bool = False, dropout: float = 0.1):
         '''
         Initialize the Expert module.
 
@@ -49,29 +48,16 @@ class Expert(BasicModel):
             in_features (int): Number of input features.
             hidden_features (int): Number of hidden features.
             out_features (int): Number of output features.
+            use_gate (bool, optional): Whether to use Gated MLP (e.g. SwiGLU). Defaults to False.
             dropout (float, optional): Dropout probability. Defaults to 0.1.
         '''
-        super().__init__()
-        self.in_features = in_features
-        self.hidden_features = hidden_features
-        self.out_features = out_features
-
-        self.f1 = nn.Linear(in_features, hidden_features)
-        self.f2 = nn.Linear(hidden_features, out_features)
-        self.act = nn.SiLU(inplace=True)
-        self.dropout = nn.Dropout(dropout, inplace=True)
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        '''
-        Forward pass of the Expert module.
-
-        Args:
-            x (torch.Tensor): Input tensor.
-
-        Returns:
-            torch.Tensor: Output tensor.
-        '''
-        return self.f2(self.dropout(self.act(self.f1(x))))
+        super().__init__(
+            in_features=in_features,
+            hidden_features=hidden_features,
+            out_features=out_features,
+            use_gate=use_gate,
+            dropout=dropout
+        )
 
 
 class MoE(BasicModel):
@@ -83,8 +69,17 @@ class MoE(BasicModel):
         experts (nn.ModuleList): List of expert modules.
         shared_experts (nn.ModuleList, optional): List of shared expert modules.
         gate (nn.Linear): Gating network to route tokens to experts.
+        use_gate (bool): Whether experts use gating mechanism.
     '''
-    def __init__(self, model_dim:int, top_k:int, num_experts:int, num_shared_experts:int=0, use_aux_loss:bool=False):
+    def __init__(
+        self, 
+        model_dim: int, 
+        top_k: int, 
+        num_experts: int, 
+        num_shared_experts: int = 0, 
+        use_aux_loss: bool = False,
+        use_gate: bool = False
+    ):
         '''
         Initialize the MoE module.
 
@@ -94,6 +89,7 @@ class MoE(BasicModel):
             num_experts (int): Total number of experts.
             num_shared_experts (int, optional): Number of shared experts. Defaults to 0.
             use_aux_loss (bool, optional): Whether to use auxiliary loss for load balancing. Defaults to False.
+            use_gate (bool, optional): Whether to use Gated MLP for experts. Defaults to False.
         '''
         super().__init__()
         self.model_dim = model_dim
@@ -101,17 +97,18 @@ class MoE(BasicModel):
         self.num_experts = num_experts
         self.num_shared_experts = num_shared_experts
         self.use_aux_loss = use_aux_loss
+        self.use_gate = use_gate
 
         hidden_dim = model_dim * 4
 
         self.experts = nn.ModuleList([
-            Expert(model_dim, hidden_dim, model_dim) for _ in range(num_experts)
+            Expert(model_dim, hidden_dim, model_dim, use_gate=use_gate) for _ in range(num_experts)
         ])
 
         self.shared_experts = None
         if num_shared_experts > 0:
             self.shared_experts = nn.ModuleList([
-                Expert(model_dim, hidden_dim, model_dim) for _ in range(num_shared_experts)
+                Expert(model_dim, hidden_dim, model_dim, use_gate=use_gate) for _ in range(num_shared_experts)
             ])
         
         self.gate = nn.Linear(model_dim, num_experts, bias=False)

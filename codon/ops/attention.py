@@ -79,8 +79,7 @@ def apply_attention(
         try:
             with sdpa_kernel([
                 SDPBackend.FLASH_ATTENTION,
-                SDPBackend.CUDNN_ATTENTION,
-                SDPBackend.EFFICIENT_ATTENTION
+                SDPBackend.CUDNN_ATTENTION
             ]):
                 output = F.scaled_dot_product_attention(
                     query_states, 

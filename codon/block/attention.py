@@ -79,7 +79,8 @@ class MultiHeadAttention(BasicModel):
         attention_mask: torch.Tensor = None,
         output_attentions: bool = False,
         position_emb: BaseEmbedding = None,
-        embedding_pos: int = 0,
+        embedding_start: int = 0,
+        embedding_pos: torch.Tensor = None,
         past_key_value: tuple[torch.Tensor, torch.Tensor] = None,
         use_cache: bool = False
     ) -> AttentionOutput:
@@ -90,13 +91,15 @@ class MultiHeadAttention(BasicModel):
             hidden_states (torch.Tensor): Input hidden states.
             kv_states (torch.Tensor, optional): Hidden states for keys/values. 
                                                 If None, uses hidden_states. Defaults to None.
-            attention_mask (torch.Tensor, optional): Attention mask (usually Padding Mask). 
+            attention_mask (torch.Tensor, optional): Attention mask. 
                                                      Defaults to None.
             output_attentions (bool, optional): Whether to output attention weights. 
                                                 Defaults to False.
             position_emb (BaseEmbedding, optional): Positional embedding module. 
                                                     Defaults to None.
-            embedding_pos (int, optional): Starting position for embedding. Defaults to 0.
+            embedding_start (int, optional): Starting position for embedding. Defaults to 0.
+            embedding_pos (torch.Tensor, optional): Explicit position indices for positional embedding. 
+                                                    Defaults to None.
             past_key_value (tuple[torch.Tensor, torch.Tensor], optional): Past key-value cache. 
                                                                           Defaults to None.
             use_cache (bool, optional): Whether to use KV cache. Defaults to False.
@@ -127,8 +130,8 @@ class MultiHeadAttention(BasicModel):
             K = self.k_norm(K)
         
         if position_emb is not None:
-            Q = position_emb(Q, start_pos=embedding_pos)
-            K = position_emb(K, start_pos=embedding_pos)
+            Q = position_emb(Q, start_pos=embedding_start, positions=embedding_pos)
+            K = position_emb(K, start_pos=embedding_start, positions=embedding_pos)
         
         current_key_value = None
         if use_cache:
