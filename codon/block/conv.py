@@ -2,7 +2,7 @@ import torch.nn.functional as F
 import math
 
 from codon.base import *
-from typing     import Tuple, Union
+from typing     import Tuple, Union, List
 
 
 def calculate_causal_layer(step: int, kernel_size: int = 3) -> Tuple[int, int]:
@@ -84,12 +84,10 @@ class CausalConv1d(BasicModel):
             dim=1,
             norm=norm,
             activation=activation,
-            dropout=dropout
+            dropout=dropout,
+            leaky_relu=leaky_relu
         )
         
-        if activation == 'leaky_relu' and isinstance(self.block.act, nn.LeakyReLU) and leaky_relu != 0.1:
-            self.block.act = nn.LeakyReLU(leaky_relu, inplace=True)
-
         self.block.conv = nn.utils.parametrizations.weight_norm(self.block.conv)
         
         self.downsample = None
@@ -178,6 +176,53 @@ class CausalConv1d(BasicModel):
 
         return nn.Sequential(*model)
 
+    @staticmethod
+    def manual_block(
+        in_channels: int,
+        num_channels: List[int],
+        kernel_size: int = 3,
+        norm: str = None,
+        activation: str = 'leaky_relu',
+        leaky_relu: float = 0.1,
+        use_res: bool = True,
+        dropout: float = 0.2
+    ) -> nn.Sequential:
+        '''
+        Manually builds multiple causal convolution blocks based on the provided list of channels.
+
+        Args:
+            in_channels (int): Number of input channels.
+            num_channels (List[int]): List of output channels for each layer.
+            kernel_size (int, optional): Kernel size. Defaults to 3.
+            norm (str, optional): Normalization type. Defaults to None.
+            activation (str, optional): Activation function type. Defaults to 'leaky_relu'.
+            leaky_relu (float, optional): Negative slope for LeakyReLU. Defaults to 0.1.
+            use_res (bool, optional): Whether to use residual connection. Defaults to True.
+            dropout (float, optional): Dropout probability. Defaults to 0.2.
+
+        Returns:
+            nn.Sequential: A sequential model containing multiple CausalConv1d layers.
+        '''
+        layers = []
+        for i in range(len(num_channels)):
+            dilation = 2 ** i
+            in_ch = in_channels if i == 0 else num_channels[i - 1]
+            out_ch = num_channels[i]
+
+            layers.append(CausalConv1d(
+                in_channels=in_ch,
+                out_channels=out_ch,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                norm=norm,
+                activation=activation,
+                leaky_relu=leaky_relu,
+                use_res=use_res,
+                dropout=dropout
+            ))
+
+        return nn.Sequential(*layers)
+
 
 class ConvBlock(BasicModel):
     '''
@@ -208,6 +253,7 @@ class ConvBlock(BasicModel):
         activation: str = 'relu',
         dropout: float = 0.0,
         pre_norm: bool = False,
+        leaky_relu: float = 0.1,
     ):
         '''
         Initializes the ConvBlock.
@@ -226,6 +272,7 @@ class ConvBlock(BasicModel):
             activation (str, optional): Activation function type ('relu', 'leaky_relu', 'gelu', 'silu', 'tanh', 'sigmoid', None). Defaults to 'relu'.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
             pre_norm (bool, optional): Whether to use Pre-Norm (Norm-Conv-Act) structure. Defaults to False (Conv-Norm-Act).
+            leaky_relu (float, optional): Negative slope for LeakyReLU. Defaults to 0.1.
         '''
         super().__init__()
         
@@ -268,7 +315,7 @@ class ConvBlock(BasicModel):
             if activation == 'relu':
                 self.act = nn.ReLU(inplace=True)
             elif activation == 'leaky_relu':
-                self.act = nn.LeakyReLU(0.1, inplace=True)
+                self.act = nn.LeakyReLU(leaky_relu, inplace=True)
             elif activation == 'gelu':
                 self.act = nn.GELU()
             elif activation == 'silu':
