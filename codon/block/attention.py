@@ -8,17 +8,14 @@ class MultiHeadAttention(BasicModel):
     Multi-Head Attention module.
     Supports Grouped Query Attention (GQA), QK Normalization, and Gating mechanisms.
 
-    Args:
-        hidden_size (int): Size of the hidden layer.
-        num_heads (int): Number of attention heads.
-        num_kv_heads (int, optional): Number of key/value heads for GQA. 
-                                      If None, defaults to num_heads.
-        use_qk_norm (bool, optional): Whether to apply RMSNorm to queries and keys. 
-                                      Defaults to True.
-        use_gate (bool, optional): Whether to apply a gating mechanism. Defaults to False.
-        dropout (float, optional): Dropout probability. Defaults to 0.1.
-        is_causal (bool, optional): Whether to apply a causal mask. 
-                                    Defaults to True (for Decoder architectures).
+    Attributes:
+        q_proj (nn.Linear): Linear layer for query projection.
+        k_proj (nn.Linear): Linear layer for key projection.
+        v_proj (nn.Linear): Linear layer for value projection.
+        o_proj (nn.Linear): Linear layer for output projection.
+        q_norm (nn.RMSNorm, optional): Normalization layer for queries.
+        k_norm (nn.RMSNorm, optional): Normalization layer for keys.
+        g_proj (nn.Linear, optional): Linear layer for gating mechanism.
     '''
     def __init__(
         self,
@@ -30,6 +27,21 @@ class MultiHeadAttention(BasicModel):
         dropout=0.1,
         is_causal=True
     ):
+        '''
+        Initialize the Multi-Head Attention module.
+
+        Args:
+            hidden_size (int): Size of the hidden layer.
+            num_heads (int): Number of attention heads.
+            num_kv_heads (int, optional): Number of key/value heads for GQA. 
+                                          If None, defaults to num_heads.
+            use_qk_norm (bool, optional): Whether to apply RMSNorm to queries and keys. 
+                                          Defaults to True.
+            use_gate (bool, optional): Whether to apply a gating mechanism. Defaults to False.
+            dropout (float, optional): Dropout probability. Defaults to 0.1.
+            is_causal (bool, optional): Whether to apply a causal mask. 
+                                        Defaults to True (for Decoder architectures).
+        '''
         super(MultiHeadAttention, self).__init__()
 
         if num_kv_heads is None: num_kv_heads = num_heads

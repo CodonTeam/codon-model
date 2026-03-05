@@ -4,6 +4,10 @@ from codon.base import *
 class RotaryPositionalEmbedding(BasicModel):
     '''
     Rotary Positional Embedding (RoPE).
+
+    Attributes:
+        cos_cached (torch.Tensor): Cached cosine values for positional encoding.
+        sin_cached (torch.Tensor): Cached sine values for positional encoding.
     '''
 
     def __init__(self, model_dim: int, max_len: int = 128000, base: int = 50000):

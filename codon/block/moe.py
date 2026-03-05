@@ -34,6 +34,12 @@ class Expert(BasicModel):
     '''
     A single expert module in the Mixture-of-Experts architecture.
     Basically a feed-forward network with SiLU activation and dropout.
+
+    Attributes:
+        f1 (nn.Linear): First linear layer.
+        f2 (nn.Linear): Second linear layer.
+        act (nn.Module): Activation function (SiLU).
+        dropout (nn.Dropout): Dropout layer.
     '''
     def __init__(self, in_features:int, hidden_features:int, out_features:int, dropout:float=0.1):
         '''
@@ -72,6 +78,11 @@ class MoE(BasicModel):
     '''
     Mixture-of-Experts (MoE) module.
     Includes support for shared experts and auxiliary loss for load balancing.
+
+    Attributes:
+        experts (nn.ModuleList): List of expert modules.
+        shared_experts (nn.ModuleList, optional): List of shared expert modules.
+        gate (nn.Linear): Gating network to route tokens to experts.
     '''
     def __init__(self, model_dim:int, top_k:int, num_experts:int, num_shared_experts:int=0, use_aux_loss:bool=False):
         '''
