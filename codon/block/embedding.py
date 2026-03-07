@@ -1,8 +1,7 @@
 from codon.base import *
-from codon.utils.theta import validate_rope_config
+from codon.utils.theta  import validate_rope_config
 
 import math
-import warnings
 
 
 class BaseEmbedding(BasicModel):
@@ -58,7 +57,7 @@ class SinusoidalEmbedding(BaseEmbedding):
 
         config = validate_rope_config(self.max_len, self.base)
         if not config.is_passed:
-            warnings.warn(f'Sinusoidal validation failed: {config.info}. Suggested base: {config.suggested_base}')
+            print(f'Sinusoidal validation failed: {config.info}. Suggested base: {config.suggested_base}')
         
         pe = torch.zeros(max_len, model_dim)
         
@@ -123,7 +122,7 @@ class BaseRotaryEmbedding(BaseEmbedding):
 
         config = validate_rope_config(self.max_len, self.base)
         if not config.is_passed:
-            warnings.warn(f'RoPE validation failed: {config.info}. Suggested base: {config.suggested_base}')
+            print(f'RoPE validation failed: {config.info}. Suggested base: {config.suggested_base}')
 
         inv_freq = 1.0 / (base ** (torch.arange(0, model_dim, 2).float() / model_dim))
 

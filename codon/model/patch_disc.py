@@ -1,5 +1,4 @@
 import math
-from typing import Union, Tuple
 
 from codon.base import *
 from codon.block.conv import ConvBlock

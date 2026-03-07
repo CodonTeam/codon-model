@@ -2,9 +2,39 @@ import torch
 
 from tokenizers  import Tokenizer
 from dataclasses import dataclass
+from enum        import Enum, auto
 
 from typing import Union
 
+
+
+class MaskMode(Enum):
+    '''
+    Enumeration of different masking modes for TokenMask.
+
+    Each mode defines how the sequence is masked relative to the special token(s).
+    The mask values are: 0 for masked, 1 for unmasked (kept).
+
+    Attributes:
+        FIRST_MASK_PRE: Find the first occurrence of the special token.
+            Mask tokens before and including the special token (0). Keep the rest (1).
+        FIRST_MASK_POST: Find the first occurrence of the special token.
+            Keep tokens before and including the special token (1). Mask the rest (0).
+        LAST_MASK_PRE: Find the last occurrence of the special token.
+            Mask tokens before and including the special token (0). Keep the rest (1).
+        LAST_MASK_POST: Find the last occurrence of the special token.
+            Keep tokens before and including the special token (1). Mask the rest (0).
+        ALL_MASK_FIRST: Find all occurrences.
+            The first segment (ending with the special token) is masked (0), then alternates.
+        ALL_KEEP_FIRST: Find all occurrences.
+            The first segment (ending with the special token) is kept (1), then alternates.
+    '''
+    FIRST_MASK_PRE  = auto()
+    FIRST_MASK_POST = auto()
+    LAST_MASK_PRE   = auto()
+    LAST_MASK_POST  = auto()
+    ALL_MASK_FIRST  = auto()
+    ALL_KEEP_FIRST  = auto()
 
 
 def make_padding_mask(src: torch.Tensor, pad_idx: int = 0) -> torch.Tensor:
@@ -130,19 +160,16 @@ class TokenMask:
         self,
         content: str,
         special_token: Union[str, int, list[Union[str, int]]],
+        mode: MaskMode = MaskMode.FIRST_MASK_PRE,
         tensor_mask: bool = True
     ) -> MaskedContent:
         '''
-        Tokenizes content and generates a mask based on the first found special token.
-
-        The tokens before and including the special token are masked (0).
-        The tokens after the special token are unmasked (1).
-        If the special token is not found, all tokens are masked (0).
+        Tokenizes content and generates a mask based on the specified mode.
 
         Args:
             content (str): The text content to tokenize and mask.
             special_token (Union[str, int, list[Union[str, int]]]): The special token(s) to use as a separator.
-                Can be a string, an integer ID, or a priority list of strings/integers.
+            mode (MaskMode): The masking mode. Defaults to MaskMode.FIRST_MASK_PRE.
             tensor_mask (bool, optional): Whether to return tensors instead of lists. Defaults to True.
 
         Returns:
@@ -157,25 +184,86 @@ class TokenMask:
         else:
             candidates = [special_token]
 
-        split_index = -1
-
+        # Determine the separator token id used in the sequence
+        sep_id = None
         for cand in candidates:
             tid = None
             if isinstance(cand, str):
                 tid = self.tokenizer.token_to_id(cand)
             elif isinstance(cand, int):
                 tid = cand
+            
+            if tid is not None and tid in ids:
+                sep_id = tid
+                break
+        
+        mask = []
 
-            if tid is not None:
-                try:
-                    split_index = ids.index(tid)
-                    break
-                except ValueError: continue
+        if sep_id is None:
+             # Special token not found.
+             # If mode implies keeping the first part, and there's no separator, the whole thing is the "first part".
+             # Modes 2, 4, 6 (Keep First / First Mask Post) -> All 1
+             # Modes 1, 3, 5 (Mask First / First Mask Pre) -> All 0
+             if mode in [MaskMode.FIRST_MASK_POST, MaskMode.LAST_MASK_POST, MaskMode.ALL_KEEP_FIRST]:
+                 mask = [1] * len(ids)
+             else:
+                 mask = [0] * len(ids)
+        else:
+            # Find indices
+            indices = [i for i, x in enumerate(ids) if x == sep_id]
+            
+            if mode == MaskMode.FIRST_MASK_PRE:
+                # 1. Find first, mask pre (0), keep post (1).
+                # [0, 0, sep, 1, 1]
+                idx = indices[0]
+                mask = [0] * (idx + 1) + [1] * (len(ids) - idx - 1)
 
-        mask = [0] * len(ids)
-        if split_index != -1:
-            for i in range(split_index + 1, len(ids)):
-                mask[i] = 1
+            elif mode == MaskMode.FIRST_MASK_POST:
+                # 2. Find first, keep pre (1), mask post (0).
+                # [1, 1, sep, 0, 0]
+                idx = indices[0]
+                mask = [1] * (idx + 1) + [0] * (len(ids) - idx - 1)
+
+            elif mode == MaskMode.LAST_MASK_PRE:
+                # 3. Find last, mask pre (0), keep post (1).
+                idx = indices[-1]
+                mask = [0] * (idx + 1) + [1] * (len(ids) - idx - 1)
+
+            elif mode == MaskMode.LAST_MASK_POST:
+                # 4. Find last, keep pre (1), mask post (0).
+                idx = indices[-1]
+                mask = [1] * (idx + 1) + [0] * (len(ids) - idx - 1)
+
+            elif mode == MaskMode.ALL_MASK_FIRST:
+                # 5. All, segments. First seg mask (0), second unmask (1)...
+                # Segments end at sep.
+                current_val = 0
+                last_idx = 0
+                mask = []
+                for idx in indices:
+                    # chunk includes sep
+                    chunk_len = idx - last_idx + 1
+                    mask.extend([current_val] * chunk_len)
+                    current_val = 1 - current_val # toggle
+                    last_idx = idx + 1
+                
+                # Remaining part
+                if last_idx < len(ids):
+                    mask.extend([current_val] * (len(ids) - last_idx))
+
+            elif mode == MaskMode.ALL_KEEP_FIRST:
+                # 6. All, segments. First seg keep (1), second mask (0)...
+                current_val = 1
+                last_idx = 0
+                mask = []
+                for idx in indices:
+                    chunk_len = idx - last_idx + 1
+                    mask.extend([current_val] * chunk_len)
+                    current_val = 1 - current_val
+                    last_idx = idx + 1
+                
+                if last_idx < len(ids):
+                    mask.extend([current_val] * (len(ids) - last_idx))
 
         if tensor_mask:
             ids = torch.tensor(ids)
