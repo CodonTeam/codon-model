@@ -37,15 +37,15 @@ class MotifA1(BasicModel):
                 num_heads=num_heads,
                 num_kv_heads=num_kv_heads,
                 top_k=1,
-                num_experts=4,
+                num_experts=3,
                 num_shared_experts=1,
-                use_aux_loss=False,
                 use_expert_gate=True,
                 use_qk_norm=True,
                 use_attn_gate=True,
-                dropout=dropout
+                dropout=dropout,
+                idx=str(idx)
             )
-            for _ in range(num_layers)
+            for idx in range(num_layers)
         ])
 
         self.norm = nn.RMSNorm(model_dim)

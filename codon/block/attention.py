@@ -1,5 +1,5 @@
 from codon.base  import *
-from codon.block.embedding import BaseEmbedding
+from codon.block.embedding import BasicEmbedding
 from codon.ops.attention   import AttentionOutput, apply_attention
 
 
@@ -78,7 +78,7 @@ class MultiHeadAttention(BasicModel):
         kv_states: torch.Tensor = None,
         attention_mask: torch.Tensor = None,
         output_attentions: bool = False,
-        position_emb: BaseEmbedding = None,
+        position_emb: BasicEmbedding = None,
         embedding_start: int = 0,
         embedding_pos: torch.Tensor = None,
         past_key_value: tuple[torch.Tensor, torch.Tensor] = None,
@@ -95,7 +95,7 @@ class MultiHeadAttention(BasicModel):
                                                      Defaults to None.
             output_attentions (bool, optional): Whether to output attention weights. 
                                                 Defaults to False.
-            position_emb (BaseEmbedding, optional): Positional embedding module. 
+            position_emb (BasicEmbedding, optional): Positional embedding module. 
                                                     Defaults to None.
             embedding_start (int, optional): Starting position for embedding. Defaults to 0.
             embedding_pos (torch.Tensor, optional): Explicit position indices for positional embedding. 

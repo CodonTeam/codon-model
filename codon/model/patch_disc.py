@@ -87,10 +87,7 @@ class PatchDiscriminator(BasicModel):
                 activation=activation,
                 leaky_relu=leaky_relu,
                 bias=False
-            )
-        ]
-
-        sequence += [
+            ),
             ConvBlock(
                 in_channels=hidden_dim * channel_mult,
                 out_channels=1,
