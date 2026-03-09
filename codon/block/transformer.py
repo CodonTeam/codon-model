@@ -3,7 +3,7 @@ from codon.base import *
 from typing import Union, Optional, Tuple
 
 from codon.utils.safecode  import safecode
-from codon.block.embedding import BaseEmbedding
+from codon.block.embedding import BasicEmbedding
 from codon.block.attention import MultiHeadAttention, AttentionOutput
 from codon.block.mlp       import MLP
 from codon.block.moe       import MoE, MoEOutput
@@ -34,7 +34,7 @@ class TransformerDecoderOutput:
         attention_mask (Optional[torch.Tensor], optional): Attention mask used. Defaults to None.
         aux_loss (Optional[torch.Tensor], optional): Auxiliary loss from the flow layer. Defaults to None.
         past_key_value (Optional[Tuple[torch.Tensor, torch.Tensor]], optional): KV cache for the current step. Defaults to None.
-        use_emb (Optional[BaseEmbedding], optional): Positional embedding module used. Defaults to None.
+        use_emb (Optional[BasicEmbedding], optional): Positional embedding module used. Defaults to None.
         emb_start (Optional[int], optional): Start position for embedding. Defaults to 0.
         emb_pos (Optional[torch.Tensor], optional): Explicit positions for embedding. Defaults to None.
     '''
@@ -44,7 +44,7 @@ class TransformerDecoderOutput:
     attention_mask: Optional[torch.Tensor] = None
     aux_loss: Optional[torch.Tensor] = None
     past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
-    use_emb: Optional[BaseEmbedding] = None
+    use_emb: Optional[BasicEmbedding] = None
     emb_start: Optional[int] = 0
     emb_pos: Optional[torch.Tensor] = None
 
@@ -116,7 +116,7 @@ class _TransformerDecoder(BasicModel):
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor = None,
         output_attentions: bool = False,
-        position_emb: BaseEmbedding = None,
+        position_emb: BasicEmbedding = None,
         embedding_start: int = 0,
         embedding_pos: torch.Tensor = None,
         past_key_value: tuple[torch.Tensor, torch.Tensor] = None,
@@ -129,7 +129,7 @@ class _TransformerDecoder(BasicModel):
             hidden_states (torch.Tensor): Input hidden states.
             attention_mask (torch.Tensor, optional): Attention mask. Defaults to None.
             output_attentions (bool, optional): Whether to return attention weights. Defaults to False.
-            position_emb (BaseEmbedding, optional): Positional embedding module. Defaults to None.
+            position_emb (BasicEmbedding, optional): Positional embedding module. Defaults to None.
             embedding_start (int, optional): Starting position for embedding. Defaults to 0.
             embedding_pos (torch.Tensor, optional): Explicit positions for embedding. Defaults to None.
             past_key_value (tuple[torch.Tensor, torch.Tensor], optional): Past KV cache. Defaults to None.

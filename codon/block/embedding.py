@@ -4,7 +4,7 @@ from codon.utils.theta  import validate_rope_config
 import math
 
 
-class BaseEmbedding(BasicModel):
+class BasicEmbedding(BasicModel):
     '''
     Base class for Positional Embeddings.
     '''
@@ -24,7 +24,7 @@ class BaseEmbedding(BasicModel):
         raise NotImplementedError
 
 
-class SinusoidalEmbedding(BaseEmbedding):
+class SinusoidalEmbedding(BasicEmbedding):
     '''
     Sinusoidal absolute positional encoding.
 
@@ -94,7 +94,7 @@ class SinusoidalEmbedding(BaseEmbedding):
         return x + pe
 
 
-class BaseRotaryEmbedding(BaseEmbedding):
+class BaseRotaryEmbedding(BasicEmbedding):
     '''
     Base class for Rotary Positional Embeddings.
 
