@@ -1,3 +1,4 @@
+import csv
 import json
 import random
 import pandas as pd
@@ -323,11 +324,10 @@ class FlatDataset(CodonDataset):
                 return row
                 
         elif self._file_type == 'csv':
-            with open(self.path, 'r', encoding='utf-8') as f:
+            with open(self.path, 'r', encoding='utf-8', newline='') as f:
                 f.seek(self._offsets[idx])
-                line = f.readline()
-                # Simple CSV parsing
-                values = line.strip().split(',')
+                reader = csv.reader(f)
+                values = next(reader)
                 row = dict(zip(self._columns, values))
                 if column:
                     return row[column]
