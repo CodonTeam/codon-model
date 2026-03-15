@@ -94,7 +94,7 @@ class SinusoidalEmbedding(BasicEmbedding):
         return x + pe
 
 
-class BaseRotaryEmbedding(BasicEmbedding):
+class BasicRotaryEmbedding(BasicEmbedding):
     '''
     Base class for Rotary Positional Embeddings.
 
@@ -108,7 +108,7 @@ class BaseRotaryEmbedding(BasicEmbedding):
 
     def __init__(self, model_dim: int, max_len: int = 131072, base: int = 500000) -> None:
         '''
-        Initializes the BaseRotaryEmbedding module.
+        Initializes the BasicRotaryEmbedding module.
 
         Args:
             model_dim (int): The dimension of the model.
@@ -151,7 +151,7 @@ class BaseRotaryEmbedding(BasicEmbedding):
         return torch.cat((-x2, x1), dim=-1)
 
 
-class RotaryEmbedding(BaseRotaryEmbedding):
+class RotaryEmbedding(BasicRotaryEmbedding):
     '''
     Rotary Positional Embedding (RoPE).
 
@@ -216,7 +216,7 @@ class RotaryEmbedding(BaseRotaryEmbedding):
         return (x * cos) + (self._rotate_half(x) * sin)
 
 
-class InterleavedRotaryEmbedding(BaseRotaryEmbedding):
+class InterleavedRotaryEmbedding(BasicRotaryEmbedding):
     '''
     Interleaved Multimodal Rotary Positional Embedding (MRoPE-Interleave).
     

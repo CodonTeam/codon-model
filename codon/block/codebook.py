@@ -7,6 +7,16 @@ from typing import Tuple
 
 @dataclass
 class LookupFreeQuantizationOutput:
+    '''
+    Output of the LookupFreeQuantization module.
+
+    Attributes:
+        z_q (torch.Tensor): The quantized latent tensor with shape [B, C, H, W].
+        loss (torch.Tensor): Total quantization loss (commitment + entropy).
+        indices (torch.Tensor): Integer indices of the quantized bits with shape [B, H, W].
+        entropy (torch.Tensor): Average bit-wise entropy.
+        perplexity (torch.Tensor): Perplexity calculated as 2^entropy.
+    '''
     z_q: torch.Tensor
     loss: torch.Tensor
     indices: torch.Tensor
@@ -17,9 +27,19 @@ class LookupFreeQuantizationOutput:
 class LookupFreeQuantization(BasicModel):
     '''
     Lookup-Free Quantization (LFQ) module.
-    
+
     Based on the MagViT-2 paper. Directly projects the latent into a low-dimensional space for binarization (Sign),
     and combines binary bits into integer indices.
+
+    Attributes:
+        latent_dim (int): Dimension of input/output features.
+        codebook_dim (int): Dimension of quantization space (number of bits).
+        entropy_weight (float): Weight for entropy loss.
+        commitment_weight (float): Weight for commitment loss.
+        diversity_gamma (float): Scaling factor for entropy penalty.
+        project_in (nn.Module): Projection layer from latent_dim to codebook_dim.
+        project_out (nn.Module): Projection layer from codebook_dim to latent_dim.
+        basis (torch.Tensor): Buffer for converting bits to integer indices.
     '''
 
     def __init__(
@@ -29,8 +49,10 @@ class LookupFreeQuantization(BasicModel):
         entropy_weight: float = 0.1,
         commitment_weight: float = 0.25,
         diversity_gamma: float = 1.0,
-    ):
+    ) -> None:
         '''
+        Initializes the LookupFreeQuantization module.
+
         Args:
             latent_dim (int): Dimension of input/output features (Encoder output dimension).
             codebook_dim (int): Dimension of quantization space (number of bits). Vocabulary size is 2^codebook_dim.
@@ -48,7 +70,7 @@ class LookupFreeQuantization(BasicModel):
         self.project_in = nn.Linear(latent_dim, codebook_dim) if latent_dim != codebook_dim else nn.Identity()
         self.project_out = nn.Linear(codebook_dim, latent_dim) if latent_dim != codebook_dim else nn.Identity()
         
-        self.register_buffer("basis", 2 ** torch.arange(codebook_dim))
+        self.register_buffer('basis', 2 ** torch.arange(codebook_dim))
 
     def entropy_loss(self, affine_logits: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
@@ -76,9 +98,11 @@ class LookupFreeQuantization(BasicModel):
 
     def forward(self, z: torch.Tensor) -> LookupFreeQuantizationOutput:
         '''
+        Performs the quantization process on the input latent.
+
         Args:
             z (torch.Tensor): Input tensor with shape [B, C, H, W].
-            
+
         Returns:
             LookupFreeQuantizationOutput: The output containing quantized latent, loss, indices, etc.
         '''

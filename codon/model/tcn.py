@@ -1,5 +1,5 @@
 from codon.base import *
-from typing     import List, Optional
+from typing     import List
 
 from codon.block.conv import CausalConv1d, calculate_causal_layer
 
