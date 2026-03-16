@@ -85,7 +85,9 @@ class MotifV1Encoder(BasicModel):
         entropy_weight: float = 0.1,
         commitment_weight: float = 0.25,
         diversity_gamma: float = 1.0,
-        rope_emb: InterleavedRotaryEmbedding = None
+        rope_emb: InterleavedRotaryEmbedding = None,
+        use_attention: bool = True,
+        depth_level: int = 1
     ):
         super().__init__()
         self.in_features = in_features
@@ -97,10 +99,13 @@ class MotifV1Encoder(BasicModel):
         self.entropy_weight = entropy_weight
         self.commitment_weight = commitment_weight
         self.diversity_gamma = diversity_gamma
+        self.use_attention = use_attention
+        self.depth_level = depth_level
 
         self.resnet = ResNet.auto_build(
             input_shape=(in_features, patch_size, patch_size),
-            output_shape=(latent_dim,)
+            output_shape=(latent_dim,),
+            depth_level=depth_level
         )
 
         self.attn = MultiHeadAttention(
@@ -110,7 +115,7 @@ class MotifV1Encoder(BasicModel):
             use_qk_norm=True,
             use_gate=True,
             is_causal=False
-        )
+        ) if self.use_attention else None
 
         self.codebook = LookupFreeQuantization(
             latent_dim=latent_dim,
@@ -156,13 +161,19 @@ class MotifV1Encoder(BasicModel):
 
         current_rope = rope_emb if rope_emb is not None else self.rope_emb
 
-        attn_out: AttentionOutput = self.attn(
-            hidden_states=hidden_states,
-            position_emb=current_rope,
-            embedding_pos=positions
-        )
+        if self.use_attention:
+            attn_out: AttentionOutput = self.attn(
+                hidden_states=hidden_states,
+                position_emb=current_rope,
+                embedding_pos=positions
+            )
+            z = attn_out.output.squeeze(0)
+            hidden_states_out = attn_out.output.squeeze(0)
+        else:
+            hidden_states = current_rope(hidden_states, positions=positions)
+            z = hidden_states.squeeze(0)
+            hidden_states_out = hidden_states.squeeze(0)
 
-        z = attn_out.output.squeeze(0)
         z = z.view(1, num_patches_h, num_patches_w, self.latent_dim)
         z = z.permute(0, 3, 1, 2)
 
@@ -176,7 +187,7 @@ class MotifV1Encoder(BasicModel):
             indices=codebook_out.indices.reshape(-1),
             entropy=codebook_out.entropy,
             perplexity=codebook_out.perplexity,
-            hidden_states=attn_out.output.squeeze(0),
+            hidden_states=hidden_states_out,
             grid_shape=grid_shape
         )
 
@@ -193,7 +204,9 @@ class MotifV1Decoder(BasicModel):
         initial_size: int = None,
         rope_emb: InterleavedRotaryEmbedding = None,
         norm: str = 'batch',
-        activation: str = 'relu'
+        activation: str = 'relu',
+        use_attention: bool = True,
+        depth_level: int = 1
     ) -> None:
         '''
         Initializes the MotifV1Decoder module.
@@ -210,12 +223,16 @@ class MotifV1Decoder(BasicModel):
             rope_emb (InterleavedRotaryEmbedding, optional): 2D rotary positional embedding. Defaults to None.
             norm (str): Normalization type for convolution blocks. Defaults to 'batch'.
             activation (str): Activation function type. Defaults to 'relu'.
+            use_attention (bool): Whether to use attention layer. Defaults to True.
+            depth_level (int): Level of network depth multiplier. Defaults to 1.
         '''
         super().__init__()
         
         self.latent_dim = latent_dim
         self.patch_size = patch_size
         self.out_features = out_features
+        self.use_attention = use_attention
+        self.depth_level = depth_level
 
         self.attn = MultiHeadAttention(
             hidden_size=latent_dim,
@@ -224,7 +241,7 @@ class MotifV1Decoder(BasicModel):
             use_qk_norm=True,
             use_gate=True,
             is_causal=False
-        )
+        ) if self.use_attention else None
 
         self.rope_emb = rope_emb if isinstance(rope_emb, InterleavedRotaryEmbedding) and rope_emb.num_axes >= 2 else InterleavedRotaryEmbedding(
             model_dim=latent_dim // num_heads,
@@ -246,7 +263,8 @@ class MotifV1Decoder(BasicModel):
             input_shape=(self.initial_channels, self.initial_size, self.initial_size),
             output_shape=(base_channels, patch_size, patch_size),
             norm=norm,
-            activation=activation
+            activation=activation,
+            depth_level=depth_level
         )
 
         self.final_conv = ConvBlock(
@@ -287,13 +305,16 @@ class MotifV1Decoder(BasicModel):
 
         current_rope = rope_emb if rope_emb is not None else self.rope_emb
 
-        attn_out: AttentionOutput = self.attn(
-            hidden_states=hidden_states,
-            position_emb=current_rope,
-            embedding_pos=positions
-        )
-
-        z_hidden = attn_out.output.squeeze(0)
+        if self.use_attention:
+            attn_out: AttentionOutput = self.attn(
+                hidden_states=hidden_states,
+                position_emb=current_rope,
+                embedding_pos=positions
+            )
+            z_hidden = attn_out.output.squeeze(0)
+        else:
+            hidden_states = current_rope(hidden_states, positions=positions)
+            z_hidden = hidden_states.squeeze(0)
 
         z = self.linear(z_hidden)
         z = z.view(-1, self.initial_channels, self.initial_size, self.initial_size)
@@ -329,11 +350,15 @@ class MotifV1(BasicModel):
         entropy_weight: float = 0.1,
         commitment_weight: float = 0.25,
         diversity_gamma: float = 1.0,
-        base_channels: int = 64,
+        base_channels: int = 128,
         initial_size: int = None,
         rope_emb: InterleavedRotaryEmbedding = None,
         norm: str = 'batch',
-        activation: str = 'relu'
+        activation: str = 'relu',
+        encoder_use_attention: bool = True,
+        decoder_use_attention: bool = True,
+        encoder_depth_level: int = 10,
+        decoder_depth_level: int = 10
     ) -> None:
         '''
         Initializes the MotifV1 model.
@@ -349,11 +374,15 @@ class MotifV1(BasicModel):
             entropy_weight (float): Weight for the entropy loss. Defaults to 0.1.
             commitment_weight (float): Weight for the commitment loss. Defaults to 0.25.
             diversity_gamma (float): Gamma value for diversity loss. Defaults to 1.0.
-            base_channels (int): Base channel width for the upsampling module in decoder. Defaults to 64.
+            base_channels (int): Base channel width for the upsampling module in decoder. Defaults to 128.
             initial_size (int, optional): The spatial size of the feature map before upsampling. Defaults to None.
             rope_emb (InterleavedRotaryEmbedding, optional): 2D rotary positional embedding. Defaults to None.
             norm (str): Normalization type for convolution blocks. Defaults to 'batch'.
             activation (str): Activation function type. Defaults to 'relu'.
+            encoder_use_attention (bool): Whether to use attention in encoder. Defaults to True.
+            decoder_use_attention (bool): Whether to use attention in decoder. Defaults to True.
+            encoder_depth_level (int): Level of network depth multiplier for encoder. Defaults to 10.
+            decoder_depth_level (int): Level of network depth multiplier for decoder. Defaults to 10.
         '''
         super().__init__()
         
@@ -372,7 +401,9 @@ class MotifV1(BasicModel):
             entropy_weight=entropy_weight,
             commitment_weight=commitment_weight,
             diversity_gamma=diversity_gamma,
-            rope_emb=self.rope_emb
+            rope_emb=self.rope_emb,
+            use_attention=encoder_use_attention,
+            depth_level=encoder_depth_level
         )
         
         self.decoder = MotifV1Decoder(
@@ -385,7 +416,9 @@ class MotifV1(BasicModel):
             initial_size=initial_size,
             rope_emb=self.rope_emb,
             norm=norm,
-            activation=activation
+            activation=activation,
+            use_attention=decoder_use_attention,
+            depth_level=decoder_depth_level
         )
         
     def forward(self, splited_image: torch.Tensor, grid_shape: tuple) -> MotifV1Output:

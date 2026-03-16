@@ -111,7 +111,8 @@ class PixelShuffleUpSample(BasicModel):
         upscale_factor: Optional[int] = None,
         norm: Optional[str] = None,
         activation: str = 'relu',
-        dropout: float = 0.0
+        dropout: float = 0.0,
+        depth_level: int = 1
     ) -> nn.Module:
         '''
         Automatically builds a PixelShuffleUpSample module or a Sequential of modules based on shapes.
@@ -126,13 +127,14 @@ class PixelShuffleUpSample(BasicModel):
             norm (Optional[str], optional): Normalization type. Defaults to None.
             activation (str, optional): Activation function type. Defaults to 'relu'.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
+            depth_level (int, optional): Level of network depth multiplier. Defaults to 1.
 
         Returns:
             nn.Module: An initialized PixelShuffleUpSample module or an nn.Sequential.
         '''
         dim = len(input_shape) - 1
         in_channels = input_shape[0]
-        
+
         if output_shape is not None:
             out_channels = output_shape[0]
             if upscale_factor is None:
@@ -141,7 +143,9 @@ class PixelShuffleUpSample(BasicModel):
             out_channels = in_channels
             if upscale_factor is None:
                 upscale_factor = 2  # Default to 2x upsampling if neither output_shape nor factor is provided
-                
+
+        layers = []
+        # Add upsampling block
         block = PixelShuffleUpSample(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -151,6 +155,21 @@ class PixelShuffleUpSample(BasicModel):
             activation=activation,
             dropout=dropout
         )
+        layers.append(block)
+
+        # Add additional refinement layers based on depth_level
+        for _ in range(max(0, depth_level - 1)):
+            layers.append(ConvBlock(
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                dim=dim,
+                norm=norm,
+                activation=activation,
+                dropout=dropout
+            ))
 
         if output_shape is not None:
             expected_spatial_size = input_shape[1] * upscale_factor
@@ -164,7 +183,11 @@ class PixelShuffleUpSample(BasicModel):
                     pool_layer = nn.AdaptiveAvgPool2d(target_spatial)
                 elif dim == 3:
                     pool_layer = nn.AdaptiveAvgPool3d(target_spatial)
-                
-                return nn.Sequential(block, pool_layer)
-                
-        return block
+
+                if pool_layer is not None:
+                    layers.append(pool_layer)
+
+        if len(layers) == 1:
+            return layers[0]
+        else:
+            return nn.Sequential(*layers)

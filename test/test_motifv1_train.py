@@ -26,13 +26,8 @@ def main() -> None:
 
     print('Initializing MotifV1...')
     model = MotifV1(
-        in_features=3,
-        out_features=3,
-        patch_size=12,
-        latent_dim=256,
-        num_heads=4,
-        num_kv_heads=4,
-        codebook_dim=18     # 2^18 = 262144
+        encoder_use_attention=False,
+        decoder_use_attention=False
     ).to(device)
 
     print('Initializing PatchDiscriminator...')

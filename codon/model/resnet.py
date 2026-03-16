@@ -209,7 +209,8 @@ class ResNet(BasicModel):
         norm: str = 'batch',
         activation: str = 'relu',
         dropout: float = 0.0,
-        variant: str = 'original'
+        variant: str = 'original',
+        depth_level: int = 1
     ) -> 'ResNet':
         '''
         Automatically builds a ResNet model based on input and output shapes.
@@ -226,6 +227,7 @@ class ResNet(BasicModel):
             activation (str, optional): Activation function type. Defaults to 'relu'.
             dropout (float, optional): Dropout probability. Defaults to 0.0.
             variant (str, optional): Residual block variant. Defaults to 'original'.
+            depth_level (int, optional): Level of network depth multiplier. Used when layers is None. Defaults to 1.
 
         Returns:
             ResNet: An initialized ResNet model.
@@ -247,7 +249,7 @@ class ResNet(BasicModel):
                     num_stages = max(1, int(math.log2(spatial_size)) - 2)
             else:
                 num_stages = 4
-            layers = [2] * num_stages
+            layers = [2 * max(1, depth_level)] * num_stages
 
         if output_shape is not None:
             num_classes = output_shape[-1]

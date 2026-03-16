@@ -213,6 +213,12 @@ class RotaryEmbedding(BasicRotaryEmbedding):
             cos = cos.view(*shape)
             sin = sin.view(*shape)
 
+        # Handle cases where hidden_dim is a multiple of model_dim (e.g., when attention is skipped)
+        if x.shape[-1] > cos.shape[-1]:
+            multiplier = x.shape[-1] // cos.shape[-1]
+            cos = cos.repeat(*([1] * (cos.ndim - 1)), multiplier)
+            sin = sin.repeat(*([1] * (sin.ndim - 1)), multiplier)
+
         return (x * cos) + (self._rotate_half(x) * sin)
 
 
@@ -334,5 +340,11 @@ class InterleavedRotaryEmbedding(BasicRotaryEmbedding):
             shape = [batch_size, 1, seq_len, -1]
             cos_all = cos_all.view(*shape)
             sin_all = sin_all.view(*shape)
+
+        # Handle cases where hidden_dim is a multiple of model_dim (e.g., when attention is skipped)
+        if x.shape[-1] > cos_all.shape[-1]:
+            multiplier = x.shape[-1] // cos_all.shape[-1]
+            cos_all = cos_all.repeat(*([1] * (cos_all.ndim - 1)), multiplier)
+            sin_all = sin_all.repeat(*([1] * (sin_all.ndim - 1)), multiplier)
         
         return (x * cos_all) + (self._rotate_half(x) * sin_all)
