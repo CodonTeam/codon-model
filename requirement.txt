@@ -1,6 +1,8 @@
 torch
+torchvision
 transformers
 tokenizers
 pandas
+numpy
 pyarrow
 pillow
