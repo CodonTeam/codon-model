@@ -1,9 +1,6 @@
 from codon.base import *
 
-import math
-
-from codon.model.resnet import ResNet
-
+from codon.model import ResNet
 from codon.block import (
     LookupFreeQuantization, LookupFreeQuantizationOutput,
     InterleavedRotaryEmbedding,
@@ -11,7 +8,11 @@ from codon.block import (
     ConvBlock, PixelShuffleUpSample
 )
 
+from .base import AutoencoderVisionModel
+
 from dataclasses import dataclass
+
+import math
 
 @dataclass
 class MotifV1EncoderOutput:
@@ -328,7 +329,7 @@ class MotifV1Decoder(BasicModel):
         )
 
 
-class MotifV1(BasicModel):
+class MotifV1(AutoencoderVisionModel):
     '''
     MotifV1 autoencoder model combining MotifV1Encoder and MotifV1Decoder.
     

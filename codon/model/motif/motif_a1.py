@@ -3,6 +3,8 @@ from codon.base import *
 from codon.block.transformer import TransformerMoEDecoder
 from codon.block.embedding   import RotaryEmbedding
 
+from .base import CausalLanguageModel
+
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
 
@@ -14,7 +16,7 @@ class MotifA1Output:
     attentions: Optional[List[torch.Tensor]] = None
 
 
-class MotifA1(BasicModel):
+class MotifA1(CausalLanguageModel):
     def __init__(
         self,
         vocab_size: int = 32000,
