@@ -22,10 +22,8 @@ def main() -> None:
     print(f'Using device: {device}')
 
     print('Initializing MotifV1...')
-    model = MotifV1(
-        encoder_use_attention=False,
-        decoder_use_attention=False
-    ).to(device)
+    model = MotifV1().to(device)
+    print(model.count_params(human_readable=True))
 
     print('Initializing PatchDiscriminator...')
     discriminator = PatchDiscriminator.auto_build(

@@ -1,13 +1,14 @@
+import torch
 import concurrent.futures
-import io
-import os
+import os, io
 import pickle
 import tarfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import torch
+from dataclasses import dataclass
+
+from pathlib import Path
+from typing  import Any, Callable, Dict, List, Optional, Tuple, Union
+
 from PIL import Image
 from torchvision.transforms import Compose, ToTensor
 

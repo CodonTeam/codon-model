@@ -1,6 +1,6 @@
 import subprocess
 import sys
-from build import clean, build
+from install import clean, build
 
 def publish() -> None:
     '''
