@@ -8,70 +8,11 @@ from codon.block import (
     ConvBlock, PixelShuffleUpSample
 )
 
-from .base import AutoencoderVisionModel
+from .base import AutoencoderVisionModel, AutoVisionEncoderOutput, AutoVisionDecoderOutput
 
-from dataclasses import dataclass
+from typing import Tuple
 
 import math
-
-@dataclass
-class MotifV1EncoderOutput:
-    '''
-    Output of the MotifV1Encoder.
-
-    Attributes:
-        z_q (torch.Tensor): Quantized latent tensor with shape [num_patches, latent_dim].
-        loss (torch.Tensor): Total quantization loss from codebook.
-        indices (torch.Tensor): Integer indices of quantized bits with shape [num_patches].
-        entropy (torch.Tensor): Average bit-wise entropy from codebook.
-        perplexity (torch.Tensor): Perplexity calculated as 2^entropy.
-        hidden_states (torch.Tensor): Hidden states before quantization with shape [num_patches, latent_dim].
-    '''
-    z_q: torch.Tensor
-    loss: torch.Tensor
-    indices: torch.Tensor
-    entropy: torch.Tensor
-    perplexity: torch.Tensor
-    hidden_states: torch.Tensor
-    grid_shape: tuple
-
-
-@dataclass
-class MotifV1DecoderOutput:
-    '''
-    Output of the MotifV1Decoder.
-
-    Attributes:
-        reconstructed_image (torch.Tensor): Reconstructed output image patches with shape [num_patches, out_features, patch_size, patch_size].
-        hidden_states (torch.Tensor): Hidden states after attention but before upsampling with shape [num_patches, latent_dim].
-    '''
-    reconstructed_image: torch.Tensor
-    hidden_states: torch.Tensor
-
-
-@dataclass
-class MotifV1Output:
-    '''
-    Output of the MotifV1 model.
-
-    Attributes:
-        reconstructed_image (torch.Tensor): Reconstructed output image patches with shape [num_patches, out_features, patch_size, patch_size].
-        z_q (torch.Tensor): Quantized latent tensor with shape [num_patches, latent_dim].
-        quantization_loss (torch.Tensor): Total quantization loss from codebook.
-        indices (torch.Tensor): Integer indices of quantized bits with shape [num_patches].
-        entropy (torch.Tensor): Average bit-wise entropy from codebook.
-        perplexity (torch.Tensor): Perplexity calculated as 2^entropy.
-        encoder_hidden_states (torch.Tensor): Hidden states from encoder before quantization.
-        decoder_hidden_states (torch.Tensor): Hidden states from decoder after attention.
-    '''
-    reconstructed_image: torch.Tensor
-    z_q: torch.Tensor
-    quantization_loss: torch.Tensor
-    indices: torch.Tensor
-    entropy: torch.Tensor
-    perplexity: torch.Tensor
-    encoder_hidden_states: torch.Tensor
-    decoder_hidden_states: torch.Tensor
 
 
 class MotifV1Encoder(BasicModel):
@@ -130,13 +71,13 @@ class MotifV1Encoder(BasicModel):
             model_dim=latent_dim // num_heads,
             num_axes=2
         )
-    
+
     def forward(
         self,
         splited_image: torch.Tensor,
         grid_shape: tuple,
         rope_emb: InterleavedRotaryEmbedding = None
-    ) -> MotifV1EncoderOutput:
+    ) -> AutoVisionEncoderOutput:
         '''
         Forward pass of the MotifV1Encoder.
 
@@ -146,7 +87,7 @@ class MotifV1Encoder(BasicModel):
             rope_emb (InterleavedRotaryEmbedding, optional): 2D rotary positional embedding. Defaults to None.
 
         Returns:
-            MotifV1EncoderOutput: The output containing quantized latent, loss, indices, etc.
+            AutoVisionEncoderOutput: The output containing quantized latent, loss, indices, etc.
         '''
         num_patches_h, num_patches_w = grid_shape
 
@@ -182,7 +123,7 @@ class MotifV1Encoder(BasicModel):
 
         z_q = codebook_out.z_q.permute(0, 2, 3, 1).reshape(-1, self.latent_dim)
 
-        return MotifV1EncoderOutput(
+        return AutoVisionEncoderOutput(
             z_q=z_q,
             loss=codebook_out.loss,
             indices=codebook_out.indices.reshape(-1),
@@ -219,7 +160,7 @@ class MotifV1Decoder(BasicModel):
             num_heads (int): Number of attention heads. Defaults to 4.
             num_kv_heads (int): Number of Key/Value attention heads. Defaults to 4.
             base_channels (int): Base channel width for the upsampling module. Defaults to 64.
-            initial_size (int, optional): The spatial size of the feature map before upsampling. 
+            initial_size (int, optional): The spatial size of the feature map before upsampling.
                                           If None, automatically calculated to match the Encoder's downsampling. Defaults to None.
             rope_emb (InterleavedRotaryEmbedding, optional): 2D rotary positional embedding. Defaults to None.
             norm (str): Normalization type for convolution blocks. Defaults to 'batch'.
@@ -228,7 +169,7 @@ class MotifV1Decoder(BasicModel):
             depth_level (int): Level of network depth multiplier. Defaults to 1.
         '''
         super().__init__()
-        
+
         self.latent_dim = latent_dim
         self.patch_size = patch_size
         self.out_features = out_features
@@ -255,7 +196,7 @@ class MotifV1Decoder(BasicModel):
             self.initial_size = max(1, patch_size // downsample_factor)
         else:
             self.initial_size = initial_size
-            
+
         self.initial_channels = base_channels * 4
 
         self.linear = nn.Linear(latent_dim, self.initial_channels * self.initial_size * self.initial_size)
@@ -282,7 +223,7 @@ class MotifV1Decoder(BasicModel):
         z_q: torch.Tensor,
         grid_shape: tuple,
         rope_emb: InterleavedRotaryEmbedding = None
-    ) -> MotifV1DecoderOutput:
+    ) -> AutoVisionDecoderOutput:
         '''
         Forward pass of the MotifV1Decoder.
 
@@ -292,10 +233,10 @@ class MotifV1Decoder(BasicModel):
             rope_emb (InterleavedRotaryEmbedding, optional): 2D rotary positional embedding. Defaults to None.
 
         Returns:
-            MotifV1DecoderOutput: The output containing reconstructed image patches and hidden states.
+            AutoVisionDecoderOutput: The output containing reconstructed image patches and hidden states.
         '''
         num_patches_h, num_patches_w = grid_shape
-        
+
         hidden_states = z_q.unsqueeze(0)
 
         positions_h = torch.arange(num_patches_h, device=z_q.device)
@@ -323,8 +264,9 @@ class MotifV1Decoder(BasicModel):
         z = self.up_blocks(z)
         output = self.final_conv(z)
 
-        return MotifV1DecoderOutput(
-            reconstructed_image=output,
+        return AutoVisionDecoderOutput(
+            reconstructed=output,
+            grid_shape=grid_shape,
             hidden_states=z_hidden
         )
 
@@ -332,7 +274,7 @@ class MotifV1Decoder(BasicModel):
 class MotifV1(AutoencoderVisionModel):
     '''
     MotifV1 autoencoder model combining MotifV1Encoder and MotifV1Decoder.
-    
+
     Attributes:
         encoder (MotifV1Encoder): The encoder part of the model.
         decoder (MotifV1Decoder): The decoder part of the model.
@@ -386,12 +328,12 @@ class MotifV1(AutoencoderVisionModel):
             decoder_depth_level (int): Level of network depth multiplier for decoder. Defaults to 6.
         '''
         super().__init__()
-        
+
         self.rope_emb = rope_emb if isinstance(rope_emb, InterleavedRotaryEmbedding) and rope_emb.num_axes >= 2 else InterleavedRotaryEmbedding(
             model_dim=latent_dim // num_heads,
             num_axes=2
         )
-        
+
         self.encoder = MotifV1Encoder(
             in_features=in_features,
             patch_size=patch_size,
@@ -406,7 +348,7 @@ class MotifV1(AutoencoderVisionModel):
             use_attention=encoder_use_attention,
             depth_level=encoder_depth_level
         )
-        
+
         self.decoder = MotifV1Decoder(
             latent_dim=latent_dim,
             out_features=out_features,
@@ -421,8 +363,8 @@ class MotifV1(AutoencoderVisionModel):
             use_attention=decoder_use_attention,
             depth_level=decoder_depth_level
         )
-        
-    def forward(self, splited_image: torch.Tensor, grid_shape: tuple) -> MotifV1Output:
+
+    def forward(self, splited_image: torch.Tensor, grid_shape: tuple) -> AutoVisionEncoderOutput:
         '''
         Forward pass of the MotifV1 model.
 
@@ -431,18 +373,104 @@ class MotifV1(AutoencoderVisionModel):
             grid_shape (tuple): Grid shape as (num_patches_h, num_patches_w).
 
         Returns:
-            MotifV1Output: Output dataclass containing reconstructed image and latent details.
+            AutoVisionEncoderOutput: Output containing reconstructed image and latent details.
         '''
-        encoder_out: MotifV1EncoderOutput = self.encoder(splited_image, grid_shape)
-        decoder_out: MotifV1DecoderOutput = self.decoder(encoder_out.z_q, grid_shape)
-        
-        return MotifV1Output(
-            reconstructed_image=decoder_out.reconstructed_image,
+        encoder_out = self.encoder(splited_image, grid_shape)
+        decoder_out = self.decoder(encoder_out.z_q, grid_shape)
+
+        return AutoVisionEncoderOutput(
             z_q=encoder_out.z_q,
-            quantization_loss=encoder_out.loss,
+            loss=encoder_out.loss,
             indices=encoder_out.indices,
+            grid_shape=grid_shape,
             entropy=encoder_out.entropy,
             perplexity=encoder_out.perplexity,
-            encoder_hidden_states=encoder_out.hidden_states,
-            decoder_hidden_states=decoder_out.hidden_states
+            hidden_states=encoder_out.hidden_states
         )
+
+    def _encode(self, x: torch.Tensor) -> AutoVisionEncoderOutput:
+        '''
+        Internal encoding method for AutoencoderVisionModel.
+
+        Args:
+            x (torch.Tensor): Input image tensor with shape [batch, channels, height, width].
+
+        Returns:
+            AutoVisionEncoderOutput: Output containing latent representation and grid_shape.
+        '''
+        splited_image, grid_shape = self._split_image(x)
+        return self.encoder(splited_image, grid_shape)
+
+    def _decode(self, encoder_output: AutoVisionEncoderOutput) -> AutoVisionDecoderOutput:
+        '''
+        Internal decoding method for AutoencoderVisionModel.
+
+        Args:
+            encoder_output (AutoVisionEncoderOutput): Output from encode method containing
+                                                      latent representation and grid_shape.
+
+        Returns:
+            AutoVisionDecoderOutput: Output containing reconstructed image patches.
+        '''
+        return self.decoder(encoder_output.z_q, encoder_output.grid_shape)
+
+    def encode(self, x: torch.Tensor) -> AutoVisionEncoderOutput:
+        '''
+        Encode a full image to latent representation.
+
+        Args:
+            x (torch.Tensor): Input image tensor with shape [batch, channels, height, width].
+
+        Returns:
+            AutoVisionEncoderOutput: Output containing quantized latent, loss, indices, etc.
+        '''
+        return self._encode(x)
+
+    def _split_image(self, image: torch.Tensor) -> Tuple[torch.Tensor, tuple]:
+        '''
+        Split a full image into patches.
+
+        Args:
+            image (torch.Tensor): Full image tensor with shape [batch, channels, height, width].
+
+        Returns:
+            Tuple[torch.Tensor, tuple]: Tuple of (splited_image tensor, grid_shape tuple).
+        '''
+        batch_size, channels, height, width = image.shape
+        patch_size = self.encoder.patch_size
+
+        num_patches_h = height // patch_size
+        num_patches_w = width // patch_size
+
+        grid_shape = (num_patches_h, num_patches_w)
+
+        splited = image.unfold(2, patch_size, patch_size).unfold(3, patch_size, patch_size)
+        splited = splited.permute(0, 2, 3, 1, 4, 5).contiguous()
+        splited = splited.view(batch_size * num_patches_h * num_patches_w, channels, patch_size, patch_size)
+
+        return splited, grid_shape
+
+    def _reconstruct_image(self, patches: torch.Tensor, grid_shape: tuple) -> torch.Tensor:
+        '''
+        Reconstruct a full image from patches.
+
+        Args:
+            patches (torch.Tensor): Patches tensor with shape [num_patches, channels, patch_size, patch_size].
+            grid_shape (tuple): Grid shape as (num_patches_h, num_patches_w).
+
+        Returns:
+            torch.Tensor: Reconstructed image tensor with shape [batch, channels, height, width].
+        '''
+        num_patches_h, num_patches_w = grid_shape
+        channels, patch_size = patches.shape[1], patches.shape[2]
+
+        batch_size = 1
+        patches_per_batch = num_patches_h * num_patches_w
+        if patches.shape[0] > patches_per_batch:
+            batch_size = patches.shape[0] // patches_per_batch
+
+        patches = patches.view(batch_size, num_patches_h, num_patches_w, channels, patch_size, patch_size)
+        patches = patches.permute(0, 3, 1, 4, 2, 5).contiguous()
+        patches = patches.view(batch_size, channels, num_patches_h * patch_size, num_patches_w * patch_size)
+
+        return patches

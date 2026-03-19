@@ -3,17 +3,10 @@ from codon.base import *
 from codon.block.transformer import TransformerMoEDecoder
 from codon.block.embedding   import RotaryEmbedding
 
-from .base import CausalLanguageModel
+from .base import CausalLanguageModel, CausalLanguageModelOutput
 
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
-
-@dataclass
-class MotifA1Output:
-    logits: torch.Tensor
-    past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None
-    aux_loss: Optional[torch.Tensor] = None
-    attentions: Optional[List[torch.Tensor]] = None
 
 
 class MotifA1(CausalLanguageModel):
@@ -77,7 +70,7 @@ class MotifA1(CausalLanguageModel):
         past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         use_cache: bool = False,
         output_attentions: bool = False
-    ) -> MotifA1Output:
+    ) -> CausalLanguageModelOutput:
         x = self.token_emb(input_ids)
         x = self.dropout(x)
 
@@ -115,7 +108,7 @@ class MotifA1(CausalLanguageModel):
         x = self.norm(x)
         logits = self.proj_out(x)
 
-        return MotifA1Output(
+        return CausalLanguageModelOutput(
             logits=logits,
             past_key_values=new_kv_cache,
             aux_loss=aux_loss,
