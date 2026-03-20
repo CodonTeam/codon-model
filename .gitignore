@@ -208,6 +208,8 @@ __marimo__/
 
 # Codon
 *.zip
+test_dataset/
 
 # Trae
 .trae/
+

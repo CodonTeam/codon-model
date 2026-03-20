@@ -18,6 +18,7 @@ import torch.optim as optim
 # config
 LR = 1e-4
 EPOCHS = 100
+RESUME = True
 PATH = {
     'data': './dataset',
     'ckpt': './checkpoint'
@@ -55,8 +56,25 @@ dataloader = dataset.compose().loader(
 # create checkpoint directory
 os.makedirs(PATH['ckpt'], exist_ok=True)
 
+# resume training
+start_epoch = 0
+if RESUME:
+    ckpts = [f for f in os.listdir(PATH['ckpt']) if f.endswith('.pth') and 'motif_v1_epoch_' in f]
+    if ckpts:
+        # Sort by epoch number
+        ckpts.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
+        latest_ckpt = os.path.join(PATH['ckpt'], ckpts[-1])
+        print(f'Resuming from checkpoint: {latest_ckpt}')
+        
+        checkpoint = torch.load(latest_ckpt, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+        optimizer_g.load_state_dict(checkpoint['optimizer_g_state_dict'])
+        optimizer_d.load_state_dict(checkpoint['optimizer_d_state_dict'])
+        start_epoch = checkpoint['epoch']
+
 # training loop
-for epoch in range(EPOCHS):
+for epoch in range(start_epoch, EPOCHS):
     model.train()
     discriminator.train()
     
