@@ -3,6 +3,7 @@ import math
 
 from codon.base  import *
 from dataclasses import dataclass
+from codon.exp.ops.manifold import riemannian_manifold_linear, euclidean_manifold_linear
 
 
 @dataclass
@@ -31,7 +32,7 @@ class MainfoldLoss:
         return self.cosine * factor_cos + self.laplacian * factor_lap
 
 
-class BasicManifold(BasicModel):
+class BasicManifoldLinear(BasicModel):
     '''
     Base class for manifold-based neural network layers.
 
@@ -49,7 +50,7 @@ class BasicManifold(BasicModel):
         k_neighbors: int = 2,
     ) -> None:
         '''
-        Initializes the BasicManifold layer.
+        Initializes the BasicManifoldLinear layer.
 
         Args:
             in_features (int): Size of each input sample.
@@ -127,7 +128,7 @@ class BasicManifold(BasicModel):
         return MainfoldLoss(cosine=loss_cos, laplacian=loss_lap)
 
 
-class RiemannianManifoldLinear(BasicManifold):
+class RiemannianManifoldLinear(BasicManifoldLinear):
     '''
     A linear layer projecting data onto a Riemannian manifold (hypersphere).
     
@@ -204,7 +205,6 @@ class RiemannianManifoldLinear(BasicManifold):
         Returns:
             torch.Tensor: The output data with shape (batch_size, out_features).
         '''
-        # 1. Force the projection of input and weights onto the unit hypersphere (L2 normalization)
         x_norm = F.normalize(input_tensor, p=2, dim=1)
         w_norm = F.normalize(self.weight, p=2, dim=1)
         
@@ -234,7 +234,7 @@ class RiemannianManifoldLinear(BasicManifold):
         return output
 
 
-class EuclideanManifoldLinear(BasicManifold):
+class EuclideanManifoldLinear(BasicManifoldLinear):
     '''
     A linear layer simulating a manifold structure in the Euclidean space.
     
