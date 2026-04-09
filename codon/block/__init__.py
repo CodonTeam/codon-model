@@ -31,6 +31,11 @@ from .transformer import (
     TransformerMoEDecoder,
     _TransformerDecoder,
 )
+from .manifold import (
+    MainfoldLoss,
+    BasicManifoldLinear, RiemannianManifoldLinear,
+    BasicManifoldConv2d, RiemannianManifoldConv2d
+)
 
 __all__ = [
     # attention
@@ -80,4 +85,10 @@ __all__ = [
     'TransformerDecoderOutput',
     'TransformerDenseDecoder',
     'TransformerMoEDecoder',
+    # manifold
+    'MainfoldLoss',
+    'BasicManifoldLinear',
+    'RiemannianManifoldLinear',
+    'BasicManifoldConv2d',
+    'RiemannianManifoldConv2d'
 ]

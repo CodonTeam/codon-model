@@ -14,6 +14,7 @@ from .bio import (
     vogels_sprekeler_update,
 )
 from .pixelshuffle import pixel_shuffle, unpixel_shuffle
+from .manifold import riemannian_manifold_linear, riemannian_manifold_conv2d
 
 __all__ = [
     # attention
@@ -35,4 +36,7 @@ __all__ = [
     # pixelshuffle
     'pixel_shuffle',
     'unpixel_shuffle',
+    # manifold
+    'riemannian_manifold_linear',
+    'riemannian_manifold_conv2d'
 ]
