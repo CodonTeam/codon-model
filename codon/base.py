@@ -132,7 +132,7 @@ class BasicModel(nn.Module):
         
         return total
     
-    def load_pretrained(self, path: str) -> None:
+    def load_pretrained(self, path: str) -> 'BasicModel':
         '''
         Load a pretrained model from a file.
 
@@ -152,8 +152,10 @@ class BasicModel(nn.Module):
                 state_dict = state_dict['state_dict']
         
         self.load_state_dict(state_dict)
+
+        return self
     
-    def save_pretrained(self, path: str) -> None:
+    def save_pretrained(self, path: str) -> 'BasicModel':
         '''
         Save the model to a file.
 
@@ -165,3 +167,26 @@ class BasicModel(nn.Module):
         else:
             state_dict = self.state_dict()
             torch.save(state_dict, path)
+        return self
+    
+    def freeze(self) -> 'BasicModel':
+        '''
+        Freeze all parameters in the model by setting requires_grad to False.
+
+        Returns:
+            BasicModel: The model itself for method chaining.
+        '''
+        for param in self.parameters():
+            param.requires_grad = False
+        return self
+
+    def unfreeze(self) -> 'BasicModel':
+        '''
+        Unfreeze all parameters in the model by setting requires_grad to True.
+
+        Returns:
+            BasicModel: The model itself for method chaining.
+        '''
+        for param in self.parameters():
+            param.requires_grad = True
+        return self

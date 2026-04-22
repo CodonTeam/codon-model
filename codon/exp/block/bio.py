@@ -115,9 +115,9 @@ class EpisodicAssociativeBlock(BasicModel):
             raise ValueError(f'Slot {id} is empty.')
             
         key = self.K[id]
-        
-        # V_hat = W * K
         value_hat = torch.matmul(self.W, key)
+        
+        value_hat = value_hat / self.usage_counts[id].float()
         
         return Episode(id=id, key=key, value=value_hat)
     
@@ -288,6 +288,89 @@ class EpisodicAssociativeBlock(BasicModel):
         t_gammas = torch.tensor(dynamic_gammas, dtype=values.dtype, device=values.device)
         self.memorize_batch(values, t_ids, t_gammas)
 
+    @torch.no_grad()
+    def auto_memorize_batch_fast(
+        self,
+        class_indices: Union[int, torch.Tensor],
+        total_class: int,
+        values: torch.Tensor
+    ):
+        batch_size = values.size(0)
+        device = values.device
+
+        if isinstance(class_indices, int):
+            class_indices = torch.full((batch_size,), class_indices, dtype=torch.long, device=device)
+
+        target_ids = torch.zeros(batch_size, dtype=torch.long, device=device)
+        
+        dynamic_gammas = torch.ones(batch_size, dtype=values.dtype, device=device)
+
+        slots_per_class = self.capacity // total_class
+        unique_classes = torch.unique(class_indices)
+
+        for c_idx in unique_classes:
+            c_mask = (class_indices == c_idx)
+            c_values = values[c_mask]
+            num_c_samples = c_values.size(0)
+
+            start_id = c_idx * slots_per_class
+            end_id = start_id + slots_per_class
+            class_slot_ids = torch.arange(start_id, end_id, device=self.usage_counts.device)
+
+            c_usage = self.usage_counts[class_slot_ids]
+            used_mask = c_usage > 0
+            used_slots = class_slot_ids[used_mask]
+            empty_slots = class_slot_ids[~used_mask]
+
+            if len(used_slots) == 0:
+                target_ids[c_mask] = empty_slots[0]
+                self.usage_counts[empty_slots[0]] += num_c_samples
+                continue
+
+            # 2. 向量化 Recall
+            used_keys = self.K[used_slots] 
+            stored_values = torch.matmul(self.W, used_keys.t()).t()
+            
+            counts = self.usage_counts[used_slots].unsqueeze(1).float()
+            stored_values = stored_values / counts
+
+            # 3. 向量化相似度计算
+            val_norm = torch.nn.functional.normalize(c_values, p=2, dim=1)
+            stored_norm = torch.nn.functional.normalize(stored_values, p=2, dim=1)
+            sim = torch.matmul(val_norm, stored_norm.t()) 
+
+            best_sims, best_local_indices = torch.max(sim, dim=1)
+            best_slot_ids = used_slots[best_local_indices]
+
+            # 4. 向量化动态阈值
+            if len(used_slots) >= 2:
+                internal_sim = torch.matmul(stored_norm, stored_norm.t())
+                mask_off_diag = ~torch.eye(len(used_slots), dtype=torch.bool, device=device)
+                base_thresh = internal_sim[mask_off_diag].mean().item() + 0.05
+            else:
+                base_thresh = 0.85
+
+            usage_ratio = len(used_slots) / slots_per_class
+            inferred_thresh = max(0.50, min(0.95, base_thresh - (usage_ratio ** 2) * 0.20))
+
+            need_new_mask = best_sims < inferred_thresh
+            final_c_target_ids = best_slot_ids.clone()
+
+            empty_idx = 0
+            for i in range(num_c_samples):
+                if need_new_mask[i] and empty_idx < len(empty_slots):
+                    final_c_target_ids[i] = empty_slots[empty_idx]
+                    empty_idx += 1
+                
+                self.usage_counts[final_c_target_ids[i]] += 1
+
+            target_ids[c_mask] = final_c_target_ids
+
+        for t_id in target_ids:
+            self.usage_counts[t_id] -= 1
+
+        self.memorize_batch(values, target_ids, dynamic_gammas)
+
     def consolidate(self, class_index: int, total_class: int, threshold: float) -> bool:
         '''
         离线记忆压缩
@@ -358,3 +441,54 @@ class EpisodicAssociativeBlock(BasicModel):
         repeated_data = replayed_data * repeat
         
         return EABReplayDataset(repeated_data)
+    
+    def count_params(
+        self, 
+        trainable_only: bool = False, 
+        active_only: bool = False, 
+        human_readable: bool = False, 
+        seen: set = None
+    ) -> Union[int, str]:
+        '''
+        重写参数统计方法。
+        由于 EAB 的核心“权重” (W, K) 被注册为无梯度的 Buffer 以执行外积叠加，
+        常规的参数统计会忽略它们。此方法将其正确计入，并支持动态的 active_only 计算。
+        '''
+        if seen is None:
+            seen = set()
+
+        # 1. 先调用父类方法，获取可能的标准 Parameter 计数（以防未来在块内添加了归一化层等）
+        total = super().count_params(
+            trainable_only=trainable_only, 
+            active_only=active_only, 
+            human_readable=False, 
+            seen=seen
+        )
+
+        if not trainable_only:
+            if self.W not in seen:
+                seen.add(self.W)
+                total += self.W.numel()
+                
+            if self.K not in seen:
+                seen.add(self.K)
+                seen.add(self.usage_counts)
+                
+                if active_only:
+                    used_slots = int((self.usage_counts > 0).sum().item())
+                    total += used_slots * self.key_dim
+                    total += used_slots
+                else:
+                    total += self.K.numel()
+                    total += self.usage_counts.numel()
+
+        if human_readable:
+            if total >= 1e9:
+                return f'{total / 1e9:.2f}B'
+            elif total >= 1e6:
+                return f'{total / 1e6:.2f}M'
+            elif total >= 1e3:
+                return f'{total / 1e3:.2f}K'
+            return str(total)
+
+        return total

@@ -2,15 +2,22 @@ import torch
 from torchvision import transforms
 
 class AddGaussianNoise(object):
-    def __init__(self, mean=0., std=0.05):
+    def __init__(
+        self,
+        mean: float = 0.0,
+        std: float = 0.05,
+        random: bool = False
+    ) -> None:
         self.std = std
         self.mean = mean
+        self.random = random
         
-    def __call__(self, tensor):
-        return tensor + torch.randn(tensor.size()) * self.std + self.mean
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        current_std = torch.rand(1).item() * self.std if self.random else self.std
+        return tensor + torch.randn(tensor.size()) * current_std + self.mean
 
-    def __repr__(self):
-        return self.__class__.__name__ + f'(mean={self.mean}, std={self.std})'
+    def __repr__(self) -> str:
+        return self.__class__.__name__ + f'(mean={self.mean}, std={self.std}, random={self.random})'
 
 def _vision_transform(output_size=(240, 240)):
     return transforms.Compose([
