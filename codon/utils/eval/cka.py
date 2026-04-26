@@ -6,15 +6,37 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class CKAMap(BaseAnalyzer):
+    '''
+    Analyzer for computing and visualizing the Centered Kernel Alignment (CKA) similarity
+    between representations of two neural network models.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]] = None,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the CKAMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): Information about classes. Defaults to None.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @staticmethod
     def _centering(K: torch.Tensor) -> torch.Tensor:
+        '''
+        Centers the kernel matrix K.
+
+        Args:
+            K (torch.Tensor): The kernel matrix to center.
+
+        Returns:
+            torch.Tensor: The centered kernel matrix.
+        '''
         n = K.shape[0]
         unit = torch.ones([n, n], device=K.device)
         I = torch.eye(n, device=K.device)
@@ -23,6 +45,16 @@ class CKAMap(BaseAnalyzer):
     
     @staticmethod
     def _linear_CKA(X: torch.Tensor, Y: torch.Tensor) -> float:
+        '''
+        Computes the linear CKA similarity between two sets of features.
+
+        Args:
+            X (torch.Tensor): Features from the first model/layer.
+            Y (torch.Tensor): Features from the second model/layer.
+
+        Returns:
+            float: The linear CKA similarity score.
+        '''
         X = X - X.mean(dim=0, keepdim=True)
         Y = Y - Y.mean(dim=0, keepdim=True)
         
@@ -48,6 +80,21 @@ class CKAMap(BaseAnalyzer):
         name: str = '',
         max_samples: int = 1000
     ) -> AnalysisResult:
+        '''
+        Analyzes the CKA similarity between specified layers of two models.
+
+        Args:
+            model_a (torch.nn.Module): The first PyTorch model.
+            model_b (torch.nn.Module): The second PyTorch model.
+            data_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            layer_names_a (list[str]): List of layer names to analyze from model_a.
+            layer_names_b (list[str], optional): List of layer names to analyze from model_b. Defaults to layer_names_a if None.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            max_samples (int, optional): Maximum number of samples to process. Defaults to 1000.
+
+        Returns:
+            AnalysisResult: An object containing the generated heatmap and the CKA similarity matrix.
+        '''
         if layer_names_b is None:
             layer_names_b = layer_names_a
         

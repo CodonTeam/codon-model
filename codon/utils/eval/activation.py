@@ -5,11 +5,23 @@ from typing import Union, Dict
 from .base import BaseAnalyzer, AnalysisResult
 
 class ActivationDistribution(BaseAnalyzer):
+    '''
+    Analyzer for visualizing the distribution of activations across different layers in a PyTorch model.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]] = None,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the ActivationDistribution analyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): Information about classes. Defaults to None.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @torch.no_grad()
@@ -21,6 +33,19 @@ class ActivationDistribution(BaseAnalyzer):
         name: str = '',
         max_batches: int = 10
     ) -> AnalysisResult:
+        '''
+        Analyzes the activation distributions of specified layers within a given model.
+
+        Args:
+            model (torch.nn.Module): The PyTorch model to evaluate.
+            data_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            layer_names (list[str], optional): List of layer names to analyze. Defaults to all Conv2d and Linear layers if None.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            max_batches (int, optional): Maximum number of batches to process. Defaults to 10.
+
+        Returns:
+            AnalysisResult: An object containing the generated plot and statistics data.
+        '''
         model.eval()
         device = next(model.parameters()).device
         

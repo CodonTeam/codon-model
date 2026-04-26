@@ -5,11 +5,23 @@ from typing import Union, Optional
 from .base import BaseAnalyzer, AnalysisResult
 
 class GradCAMMap(BaseAnalyzer):
+    '''
+    Analyzer for generating Grad-CAM (Gradient-weighted Class Activation Mapping) visualizations.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]] = None,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the GradCAMMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): Information about classes. Defaults to None.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @torch.enable_grad()
@@ -21,6 +33,19 @@ class GradCAMMap(BaseAnalyzer):
         target_class: Optional[int] = None,
         name: str = ''
     ) -> AnalysisResult:
+        '''
+        Generates the Grad-CAM visualization for a given input image and target class.
+
+        Args:
+            model (torch.nn.Module): The classification model.
+            target_layer (torch.nn.Module): The specific layer (usually the last convolutional layer) to visualize.
+            input_tensor (torch.Tensor): The input image tensor.
+            target_class (Optional[int], optional): The target class index. If None, the predicted class is used. Defaults to None.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+
+        Returns:
+            AnalysisResult: An object containing the generated visualization figure and the raw CAM array.
+        '''
         model.eval()
         device = next(model.parameters()).device
         input_tensor = input_tensor.to(device)

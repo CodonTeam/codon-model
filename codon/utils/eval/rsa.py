@@ -6,12 +6,26 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class RSAMap(BaseAnalyzer):
+    '''
+    Analyzer for computing and visualizing Representational Similarity Analysis (RSA)
+    between class centroids extracted from a model's features.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]],
         val_loader: torch.utils.data.DataLoader,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the RSAMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]]): Information about classes (number or list of names).
+            val_loader (torch.utils.data.DataLoader): The DataLoader providing validation/test data.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
         self.data_loader = val_loader
 
@@ -22,6 +36,17 @@ class RSAMap(BaseAnalyzer):
         name: str = '',
         mask_upper: bool = False
     ) -> AnalysisResult:
+        '''
+        Analyzes the representational similarity between different classes.
+
+        Args:
+            feature_extractor (torch.nn.Module): The feature extraction model/layer.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            mask_upper (bool, optional): Whether to mask the upper triangle of the heatmap. Defaults to False.
+
+        Returns:
+            AnalysisResult: An object containing the generated heatmap and the computed RSA matrix.
+        '''
         feature_extractor.eval()
         device = next(feature_extractor.parameters()).device
         

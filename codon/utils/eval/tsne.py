@@ -7,12 +7,25 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class TSNEMap(BaseAnalyzer):
+    '''
+    Analyzer for generating t-SNE visualizations of feature representations.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]],
         val_loader: torch.utils.data.DataLoader,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the TSNEMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]]): Information about classes (number or list of names).
+            val_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
         self.data_loader = val_loader
 
@@ -24,6 +37,18 @@ class TSNEMap(BaseAnalyzer):
         max_samples: int = 2000,
         perplexity: float = 30.0
     ) -> AnalysisResult:
+        '''
+        Computes and visualizes the t-SNE embedding of the extracted features.
+
+        Args:
+            feature_extractor (torch.nn.Module): The feature extraction model.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            max_samples (int, optional): Maximum number of samples to use for t-SNE. Defaults to 2000.
+            perplexity (float, optional): The perplexity parameter for t-SNE. Defaults to 30.0.
+
+        Returns:
+            AnalysisResult: An object containing the generated scatter plot and the 2D embedded data.
+        '''
         feature_extractor.eval()
         device = next(feature_extractor.parameters()).device
         

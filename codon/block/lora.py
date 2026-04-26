@@ -50,6 +50,8 @@ class BasicLoRA(BasicModel):
         super().__init__()
         self.gradient_checkpointing = gradient_checkpointing
         self.original_layer = original_layer
+        self.lora_dropout_p = lora_dropout
+        self.merge_weights = merge_weights
 
         # Freeze original layer
         for p in self.original_layer.parameters():

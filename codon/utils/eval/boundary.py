@@ -5,11 +5,24 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class DecisionBoundaryMap(BaseAnalyzer):
+    '''
+    Analyzer for visualizing the decision boundaries and prediction confidence of a model
+    using t-SNE embeddings of the features.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]],
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the DecisionBoundaryMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]]): Information about classes (number or list of names).
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @torch.no_grad()
@@ -23,6 +36,21 @@ class DecisionBoundaryMap(BaseAnalyzer):
         resolution: int = 100,
         max_samples: int = 2000
     ) -> AnalysisResult:
+        '''
+        Analyzes and plots the decision boundaries and confidence map.
+
+        Args:
+            model (torch.nn.Module): The classification model containing a fully connected layer (e.g., 'fc').
+            feature_extractor (torch.nn.Module): The feature extraction part of the model.
+            data_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            tsne_embedded (np.ndarray, optional): Pre-computed t-SNE embeddings. Defaults to None.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            resolution (int, optional): Resolution of the grid used for boundary drawing. Defaults to 100.
+            max_samples (int, optional): Maximum number of samples to use. Defaults to 2000.
+
+        Returns:
+            AnalysisResult: An object containing the generated plot and grid prediction/confidence data.
+        '''
         model.eval()
         feature_extractor.eval()
         device = next(model.parameters()).device

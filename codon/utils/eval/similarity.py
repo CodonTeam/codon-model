@@ -6,10 +6,34 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class CrossCosineSimilarityMap(BaseAnalyzer):
-    def __init__(self, class_info: Union[int, list[str]] = None, lang: str = None):
+    '''
+    Analyzer for computing and visualizing the cross-cosine similarity of a given matrix.
+    Inherits from BaseAnalyzer.
+    '''
+
+    def __init__(self, class_info: Union[int, list[str]] = None, lang: str = None) -> None:
+        '''
+        Initializes the CrossCosineSimilarityMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): Information about classes. Defaults to None.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     def analyse(self, matrix: torch.Tensor, name: str = '', mask_upper: bool = False) -> Union[AnalysisResult, None]:
+        '''
+        Analyzes the given matrix and generates a cosine similarity heatmap.
+
+        Args:
+            matrix (torch.Tensor): A 2D tensor representing the vectors to compare.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            mask_upper (bool, optional): Whether to mask the upper triangle of the heatmap. Defaults to False.
+
+        Returns:
+            Union[AnalysisResult, None]: An object containing the generated heatmap and the similarity matrix,
+                                         or None if the input matrix is not 2D.
+        '''
         if matrix.dim() != 2: return None
 
         if self.class_num == 0:

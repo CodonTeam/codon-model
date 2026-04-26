@@ -6,17 +6,40 @@ from typing import Union
 from .base import BaseAnalyzer, AnalysisResult
 
 class ConfusionMap(BaseAnalyzer):
+    '''
+    Analyzer for computing and visualizing the confusion matrix of a classification model.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]],
         val_loader: torch.utils.data.DataLoader,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the ConfusionMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]]): Information about classes (number or list of names).
+            val_loader (torch.utils.data.DataLoader): The DataLoader providing validation/test data.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
         self.data_loader = val_loader
     
     @torch.no_grad()
     def analyse(self, model: torch.nn.Module, name: str = '') -> AnalysisResult:
+        '''
+        Analyzes the model's predictions and generates a confusion matrix.
+
+        Args:
+            model (torch.nn.Module): The classification model to evaluate.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+
+        Returns:
+            AnalysisResult: An object containing the generated heatmap and the raw confusion matrix.
+        '''
         model.eval()
         device = next(model.parameters()).device
         

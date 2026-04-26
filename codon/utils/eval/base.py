@@ -64,17 +64,43 @@ I18N_DICT = {
 
 @dataclass
 class AnalysisResult:
+    '''
+    A data class to store and manage the results of various analyses.
+
+    Attributes:
+        fig (plt.Figure): The matplotlib figure object.
+        ax (plt.Axes): The matplotlib axes object.
+        data (Any, optional): The raw data or intermediate results from the analysis.
+        plot_func (Optional[Callable], optional): A function to plot the data on given axes.
+    '''
     fig: plt.Figure
     ax: plt.Axes
     data: Any = None
     plot_func: Optional[Callable] = None
 
     def show(self) -> 'AnalysisResult':
+        '''
+        Displays the figure.
+
+        Returns:
+            AnalysisResult: The current AnalysisResult instance for chaining.
+        '''
         plt.figure(self.fig.number)
         plt.show()
         return self
     
-    def save(self, path: str, name: str, fmt: str = 'pdf'):
+    def save(self, path: str, name: str, fmt: str = 'pdf') -> str:
+        '''
+        Saves the figure to a specified path.
+
+        Args:
+            path (str): The directory path to save the figure.
+            name (str): The name of the file (without extension).
+            fmt (str): The format of the image file (e.g., 'pdf', 'png'). Defaults to 'pdf'.
+
+        Returns:
+            str: The complete file path where the figure was saved.
+        '''
         if not os.path.isdir(path): os.makedirs(path)
         save_path = os.path.join(path, f'{name}.{fmt}')
         self.fig.savefig(save_path, format=fmt, bbox_inches='tight')
@@ -82,6 +108,18 @@ class AnalysisResult:
 
     @staticmethod
     def merge(results: list['AnalysisResult'], title: str = None, path: str = None, show: bool = False) -> 'AnalysisResult':
+        '''
+        Merges multiple AnalysisResult objects into a single figure.
+
+        Args:
+            results (list[AnalysisResult]): A list of AnalysisResult instances to merge.
+            title (str, optional): The overall title for the merged figure.
+            path (str, optional): The directory path to save the merged figure.
+            show (bool): Whether to display the merged figure. Defaults to False.
+
+        Returns:
+            AnalysisResult: A new AnalysisResult instance containing the merged figure and axes.
+        '''
         n = len(results)
         fig, axes = plt.subplots(1, n, figsize=(8 * n, 6))
         if n == 1: axes = [axes]
@@ -105,7 +143,24 @@ class AnalysisResult:
         return merged_res
 
 class BaseAnalyzer:
-    def __init__(self, class_info: Union[int, list[str]] = None, lang: str = None):
+    '''
+    Base class for all evaluation analyzers, providing common utilities for localization and plotting.
+
+    Attributes:
+        lang (str): The language code used for internationalization ('en' or 'zh').
+        t (dict): The translation dictionary for the selected language.
+        class_num (int): The number of classes.
+        class_name (list[str]): The names of the classes.
+    '''
+
+    def __init__(self, class_info: Union[int, list[str]] = None, lang: str = None) -> None:
+        '''
+        Initializes the BaseAnalyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): The number of classes or a list of class names.
+            lang (str, optional): The language code to use ('en' or 'zh'). Defaults to the system language.
+        '''
         _lang = lang or SYS_LANG
         self.lang = _lang if _lang in I18N_DICT else 'en'
         self.t = I18N_DICT[self.lang]
@@ -123,9 +178,21 @@ class BaseAnalyzer:
 
     @property
     def show_annot(self) -> bool:
+        '''
+        Determines whether to show annotations in plots based on the number of classes.
+
+        Returns:
+            bool: True if annotations should be shown (<= 20 classes), False otherwise.
+        '''
         return self.class_num <= 20
         
     def get_ticklabels(self) -> list:
+        '''
+        Generates tick labels for plots, reducing density if there are too many classes.
+
+        Returns:
+            list[str]: A list of tick labels to display on the axes.
+        '''
         if self.class_num <= 30:
             return self.class_name
         
@@ -133,5 +200,11 @@ class BaseAnalyzer:
         return [name if i % step == 0 else "" for i, name in enumerate(self.class_name)]
 
     def _get_figsize(self) -> tuple[float, float]:
+        '''
+        Calculates an appropriate figure size based on the number of classes.
+
+        Returns:
+            tuple[float, float]: A tuple representing the (width, height) of the figure.
+        '''
         size = max(8.0, min(20.0, self.class_num * 0.4))
         return (size, size * 0.75)

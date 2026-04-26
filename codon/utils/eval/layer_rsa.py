@@ -6,11 +6,24 @@ from typing import Union, Dict
 from .base import BaseAnalyzer, AnalysisResult
 
 class LayerRSAMap(BaseAnalyzer):
+    '''
+    Analyzer for computing and visualizing the Representational Similarity Analysis (RSA)
+    across different layers of a single neural network model.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]] = None,
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the LayerRSAMap analyzer.
+
+        Args:
+            class_info (Union[int, list[str]], optional): Information about classes. Defaults to None.
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @torch.no_grad()
@@ -22,6 +35,19 @@ class LayerRSAMap(BaseAnalyzer):
         name: str = '',
         max_samples: int = 1000
     ) -> AnalysisResult:
+        '''
+        Analyzes the representational similarity between specified layers of the model.
+
+        Args:
+            model (torch.nn.Module): The PyTorch model to evaluate.
+            data_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            layer_names (list[str]): List of layer names to analyze and compare.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            max_samples (int, optional): Maximum number of samples to process. Defaults to 1000.
+
+        Returns:
+            AnalysisResult: An object containing the generated heatmap and the RSA similarity matrix.
+        '''
         model.eval()
         device = next(model.parameters()).device
         

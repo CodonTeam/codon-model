@@ -5,11 +5,24 @@ from typing import Union, Dict
 from .base import BaseAnalyzer, AnalysisResult
 
 class NeuronSelectivity(BaseAnalyzer):
+    '''
+    Analyzer for computing and visualizing neuron class selectivity.
+    It identifies neurons that respond most strongly to specific classes.
+    Inherits from BaseAnalyzer.
+    '''
+
     def __init__(
         self,
         class_info: Union[int, list[str]],
         lang: str = None
-    ):
+    ) -> None:
+        '''
+        Initializes the NeuronSelectivity analyzer.
+
+        Args:
+            class_info (Union[int, list[str]]): Information about classes (number or list of names).
+            lang (str, optional): Language for visualization titles/labels ('en' or 'zh'). Defaults to None.
+        '''
         super().__init__(class_info, lang=lang)
     
     @torch.no_grad()
@@ -22,6 +35,20 @@ class NeuronSelectivity(BaseAnalyzer):
         top_k: int = 10,
         max_samples: int = 2000
     ) -> AnalysisResult:
+        '''
+        Analyzes the selectivity of neurons in a specified layer.
+
+        Args:
+            feature_extractor (torch.nn.Module): The feature extraction model.
+            data_loader (torch.utils.data.DataLoader): The DataLoader providing input data.
+            layer_name (str, optional): The specific layer to analyze. Automatically finds the first Linear/Conv2d if None.
+            name (str, optional): Optional name to append to the plot title. Defaults to ''.
+            top_k (int, optional): The number of top selective neurons to visualize. Defaults to 10.
+            max_samples (int, optional): Maximum number of samples to process. Defaults to 2000.
+
+        Returns:
+            AnalysisResult: An object containing the generated plots and data regarding neuron selectivity.
+        '''
         feature_extractor.eval()
         device = next(feature_extractor.parameters()).device
         
