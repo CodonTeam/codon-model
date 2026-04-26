@@ -1,31 +1,22 @@
 import torch
-import os
-import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import Union
+import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
+from typing import Union
+from .base import BaseAnalyzer, AnalysisResult
 
-class ConfusionMap:
+class ConfusionMap(BaseAnalyzer):
     def __init__(
         self,
         class_info: Union[int, list[str]],
         val_loader: torch.utils.data.DataLoader,
-        path: str
+        lang: str = None
     ):
-        if isinstance(class_info, int):
-            self.class_num = class_info
-            self.class_name = [str(i) for i in range(class_info)]
-        else:
-            self.class_num = len(class_info)
-            self.class_name = class_info
-        
-        if not os.path.isdir(path): os.makedirs(path)
-            
-        self.path = path
+        super().__init__(class_info, lang=lang)
         self.data_loader = val_loader
     
     @torch.no_grad()
-    def analyse(self, model: torch.nn.Module, name: str, show: bool = False) -> str:
+    def analyse(self, model: torch.nn.Module, name: str = '') -> AnalysisResult:
         model.eval()
         device = next(model.parameters()).device
         
@@ -33,8 +24,8 @@ class ConfusionMap:
         all_targets = []
         
         for inputs, targets in self.data_loader:
-            inputs: torch.Tensor = inputs.to(device)
-            outputs: torch.Tensor = model(inputs)
+            inputs = inputs.to(device)
+            outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
             
             all_preds.extend(preds.cpu().numpy())
@@ -42,26 +33,22 @@ class ConfusionMap:
             
         cm = confusion_matrix(all_targets, all_preds, labels=range(self.class_num))
         
-        plt.figure(figsize=(max(8, self.class_num * 0.8), max(6, self.class_num * 0.6)))
-        sns.heatmap(
-            cm, 
-            annot=True, 
-            fmt='d', 
-            cmap='Blues', 
-            xticklabels=self.class_name, 
-            yticklabels=self.class_name
-        )
+        def plot_fn(ax):
+            sns.heatmap(
+                cm, fmt='d', cmap='Blues', ax=ax,
+                annot=self.show_annot,
+                xticklabels=self.get_ticklabels(), 
+                yticklabels=self.get_ticklabels(),
+            )
+            
+            title = self.t['confusion_title']
+            if name: title += f' - {name}'
+            
+            ax.set_title(title)
+            ax.set_ylabel(self.t['actual'])
+            ax.set_xlabel(self.t['predicted'])
+
+        fig, ax = plt.subplots(figsize=self._get_figsize())
+        plot_fn(ax)
         
-        plt.title(f'Confusion Matrix - {name}')
-        plt.ylabel('Actual')
-        plt.xlabel('Predicted')
-        
-        save_path = os.path.join(self.path, f"{name}_confusion.pdf")
-        plt.savefig(save_path, format='pdf', bbox_inches='tight')
-        
-        if show:
-            plt.show()
-        else:
-            plt.close()
-        
-        return save_path
+        return AnalysisResult(fig=fig, ax=ax, data=cm, plot_func=plot_fn)
