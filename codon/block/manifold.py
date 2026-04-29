@@ -128,6 +128,12 @@ class BasicManifoldLinear(BasicModel):
         loss_lap = torch.sum(A * (1.0 - C)) / torch.sum(A)
         
         return MainfoldLoss(cosine=loss_cos, laplacian=loss_lap)
+    
+    def extra_repr(self) -> str:
+        '''
+        Sets the extra representation of the module for printing.
+        '''
+        return f'in_features={self.in_features}, out_features={self.out_features}, k_neighbors={self.k_neighbors}'
 
 
 class RiemannianManifoldLinear(BasicManifoldLinear):
@@ -216,6 +222,10 @@ class RiemannianManifoldLinear(BasicManifoldLinear):
             bias=self.bias,
             rule=self.rule
         )
+
+    def extra_repr(self) -> str:
+        main_str = super().extra_repr()
+        return f'{main_str}, rule={self.rule}, kappa={self.kappa.item():.4f}, lambda={self.lambda_rate.item():.4f}'
 
 
 class BasicManifoldConv2d(BasicModel):
@@ -336,6 +346,16 @@ class BasicManifoldConv2d(BasicModel):
         loss_lap = torch.sum(A * (1.0 - C)) / torch.sum(A)
         
         return MainfoldLoss(cosine=loss_cos, laplacian=loss_lap)
+    
+    def extra_repr(self) -> str:
+        s = ('{in_channels}, {out_channels}, kernel_size={kernel_size}'
+             ', stride={stride}')
+        if self.padding != 0:
+            s += ', padding={padding}'
+        if self.dilation != 1:
+            s += ', dilation={dilation}'
+        s += f', rule={self.rule}, use_norm={self.use_norm}'
+        return s.format(**self.__dict__)
 
 
 class RiemannianManifoldConv2d(BasicManifoldConv2d):

@@ -9,7 +9,7 @@ from tokenizers.trainers import BpeTrainer
 
 from transformers import PreTrainedTokenizerFast
 
-from typing import Union, Optional
+from typing import Union, Optional, Generator
 
 @dataclass
 class TokenizerTrainerResult:
@@ -23,8 +23,18 @@ class TokenizerTrainerResult:
     tokenizer: Tokenizer
     trainer: BpeTrainer
 
+    def train_from_iterator(self, iter: Generator) -> 'TokenizerTrainerResult':
+        self.tokenizer.train_from_iterator(iter, self.trainer)
+        return self
+    
+    @property
+    def packed_tokenizer(self) -> 'PackedTokenizer':
+        return PackedTokenizer(
+            tokenizer=self.tokenizer
+        )
 
-core_tokens = ['[unk]', '[pad]', '[sep]']
+
+core_tokens = ['[pad]', '[unk]', '[sep]', '[cls]']
 chat_tokens = [
     '[im_start]', '[im_end]',
     '[system]', '[user]', '[model]', '[tool]', '[train]',
