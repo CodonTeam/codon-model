@@ -142,7 +142,7 @@ class BasicModel(nn.Module):
         '''
         if path.endswith('.safetensors'):
             safe_load_model(self, path)
-            return
+            return self
 
         state_dict = torch.load(path, map_location=self.device)
 
