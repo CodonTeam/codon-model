@@ -6,7 +6,7 @@ from tqdm import tqdm
 from codon.utils.seed import seed_everything
 seed_everything(42)
 
-from codon.model.motif.motif_v1 import MotifV1
+from codon.motif.motif_v1 import MotifV1
 from codon.utils.dataset import ImageDataset, ImageDatasetItem
 from codon.model.patch_disc import PatchDiscriminator
 from codon.utils.transforms import _vision_transform
@@ -121,7 +121,6 @@ for epoch in range(start_epoch, EPOCHS):
             'usage': f'{avg_usage:.2f}'
         })
         
-    # save checkpoint
     ckpt_path = os.path.join(PATH['ckpt'], f'motif_v1_epoch_{epoch+1}.pth')
     torch.save({
         'epoch': epoch + 1,

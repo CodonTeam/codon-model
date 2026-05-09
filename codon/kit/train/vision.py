@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Union, Optional, Literal, Callable
 
 from codon.model import PatchDiscriminator
-from codon.model.motif import (
+from codon.motif import (
     AutoencoderVisionModel,
     AutoVisionEncoderOutput,
     AutoVisionDecoderOutput
