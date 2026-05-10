@@ -5,7 +5,6 @@ import math
 from dataclasses import dataclass
 from typing      import Optional, Tuple
 
-from torch.nn.attention import SDPBackend, sdpa_kernel
 
 @dataclass
 class AttentionOutput:
@@ -77,21 +76,16 @@ def apply_attention(
             is_causal = True
         
         try:
-            with sdpa_kernel([
-                SDPBackend.FLASH_ATTENTION,
-                SDPBackend.CUDNN_ATTENTION
-            ]):
-                output = F.scaled_dot_product_attention(
-                    query_states, 
-                    key_states, 
-                    value_states, 
-                    attn_mask=attention_mask,
-                    is_causal=is_causal,
-                    dropout_p=dropout
-                )
+            output = F.scaled_dot_product_attention(
+                query_states, 
+                key_states, 
+                value_states, 
+                attn_mask=attention_mask,
+                is_causal=is_causal,
+                dropout_p=dropout
+            )
             return AttentionOutput(output=output, attention_weights=None)
-        except RuntimeError: 
-            pass
+        except RuntimeError: pass
     # Manual Fallback Path
     d_k = query_states.size(-1)
     scores = torch.matmul(query_states, key_states.transpose(-2, -1)) / math.sqrt(d_k)

@@ -37,10 +37,10 @@ class TokenizerTrainerResult:
 core_tokens = ['[pad]', '[unk]', '[sep]', '[cls]']
 chat_tokens = [
     '[im_start]', '[im_end]',
-    '[system]', '[user]', '[model]', '[tool]', '[train]',
+    '[system]', '[user]', '[model]', '[tool]',
     '[interruption]', '[fim]',
 ]
-reasoning_tokens = ['[cot_start]', '[cot_end]', '[verification]', '[solution]']
+reasoning_tokens = ['[cot_start]', '[cot_end]']
 code_tokens = ['[fim_pre]', '[fim_mid]', '[fim_suf]']
 tool_tokens = ['[tool_start]', '[tool_name]', '[tool_args]', '[tool_end]']
 
@@ -59,7 +59,6 @@ base_special_tokens = (
 )
 
 base_special_tokens += [f'[unused_{i}]' for i in range(len(base_special_tokens), 64)]
-base_special_tokens += [f'[mask_{i}]' for i in range(32)]
 
 chat_template = (
     "{% for message in messages %}"
@@ -83,8 +82,6 @@ chat_template = (
                 "{{ '[model]' }}"
             "{% elif message['role'] == 'tool' %}"
                 "{{ '[tool]' }}"
-            "{% elif message['role'] == 'train' %}"
-                "{{ '[train]' }}"
             "{% else %}"
                 "{{ message['role'] }}"
             "{% endif %}"

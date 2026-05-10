@@ -1,11 +1,7 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from codon.base import *
 
-from typing import Callable, Any, Iterator, Union, Optional, List, Tuple
+from typing import Optional, List, Tuple
 from dataclasses import dataclass
-
-from codon.base import BasicModel
 
 
 @dataclass
@@ -77,7 +73,7 @@ class CausalLanguageModel(BasicModel):
         self,
         input_ids: torch.Tensor,
         max_new_tokens: int = 100,
-        temperature: float = 1.0,
+        temperature: float = 0.7,
         top_k: int = None,
         eos_token_id: int = None
     ) -> torch.Tensor:
@@ -88,7 +84,7 @@ class CausalLanguageModel(BasicModel):
             input_ids (torch.Tensor): Input token IDs with shape [batch, seq_len].
             max_new_tokens (int): Maximum number of new tokens to generate. Defaults to 100.
             temperature (float): Sampling temperature. Higher values increase randomness.
-                                 Defaults to 1.0.
+                                 Defaults to 0.7.
             top_k (int, optional): If set, sample only from top k tokens. Defaults to None.
             eos_token_id (int, optional): End-of-sequence token ID. If None, generation
                                           stops after max_new_tokens. Defaults to None.

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from typing import Callable, Any, Iterator, Union
 
 from safetensors.torch import save_model as safe_save_model
+from safetensors.torch import save_file  as safe_save_file
 from safetensors.torch import load_model as safe_load_model
 
 
@@ -133,41 +134,102 @@ class BasicModel(nn.Module):
         
         return total
     
-    def load_pretrained(self, path: str) -> 'BasicModel':
+    def load_pretrained(self, path: str, strict: bool = False) -> 'BasicModel':
         '''
         Load a pretrained model from a file.
-
         Args:
             path (str): The path to the model file.
+            strict (bool, optional): Whether to strictly enforce that the keys
+                                     in state_dict match. Defaults to False.
         '''
         if path.endswith('.safetensors'):
-            safe_load_model(self, path)
+            safe_load_model(self, path, strict=strict)
             return self
-
         state_dict = torch.load(path, map_location=self.device)
-
         if isinstance(state_dict, dict):
             if 'model_state_dict' in state_dict:
                 state_dict = state_dict['model_state_dict']
             elif 'state_dict' in state_dict:
                 state_dict = state_dict['state_dict']
         
-        self.load_state_dict(state_dict)
-
+        self.load_state_dict(state_dict, strict=strict)
         return self
     
-    def save_pretrained(self, path: str) -> 'BasicModel':
+    def save_pretrained(
+            self, 
+            path: str, 
+            trainable_only: bool = False, 
+            include_buffer: bool = True, 
+            exclude_modules: list[Union[type, nn.Module]] = None,
+            only: list[str] = None,
+            exclude: list[str] = None
+        ) -> 'BasicModel':
         '''
         Save the model to a file.
 
         Args:
             path (str): The path to save the model file.
+            trainable_only (bool, optional): If True, only save parameters that require gradients.
+            include_buffer (bool, optional): If False, exclude registered buffers from the saved file.
+            exclude_modules (list[Union[type, nn.Module]], optional): Module types or instances to exclude.
+            only (list[str], optional): If provided, only save parameters whose keys contain ANY of these strings.
+            exclude (list[str], optional): If provided, exclude parameters whose keys contain ANY of these strings.
         '''
+        state_dict = self.state_dict()
+        is_modified = False
+        
+        exclude_prefixes = []
+        if exclude_modules:
+            exclude_types = tuple(t for t in exclude_modules if isinstance(t, type))
+            exclude_instances = set(m for m in exclude_modules if not isinstance(m, type))
+            
+            for name, module in self.named_modules():
+                if module in exclude_instances or (exclude_types and isinstance(module, exclude_types)):
+                    if name != '': exclude_prefixes.append(name + '.')
+        exclude_prefixes = tuple(exclude_prefixes)
+
+        has_filter = trainable_only or not include_buffer or exclude_prefixes or only or exclude
+
+        if has_filter:
+            trainable_names = {name for name, p in self.named_parameters() if p.requires_grad}
+            buffer_names = {name for name, _ in self.named_buffers()}
+            
+            filtered_dict = {}
+            for key, tensor in state_dict.items():
+                keep = True
+                
+                if exclude_prefixes and key.startswith(exclude_prefixes):
+                    keep = False
+                
+                elif exclude and any(kw in key for kw in exclude):
+                    keep = False
+                
+                elif only and not any(kw in key for kw in only):
+                    keep = False
+                
+                else:
+                    is_buffer = key in buffer_names
+                    if not include_buffer and is_buffer:
+                        keep = False
+                    elif trainable_only and not is_buffer and key not in trainable_names:
+                        keep = False
+                
+                if keep:
+                    filtered_dict[key] = tensor
+                else:
+                    is_modified = True
+            
+            if is_modified:
+                state_dict = filtered_dict
+
         if path.endswith('.safetensors'):
-            safe_save_model(self, path)
+            if not is_modified:
+                safe_save_model(self, path)
+            else:
+                safe_save_file(state_dict, path)
         else:
-            state_dict = self.state_dict()
             torch.save(state_dict, path)
+            
         return self
     
     def freeze(self) -> 'BasicModel':

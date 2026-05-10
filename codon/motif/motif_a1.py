@@ -34,9 +34,9 @@ class MotifA1(CausalLanguageModel):
                 top_k=1,
                 num_experts=3,
                 num_shared_experts=1,
-                use_expert_gate=True,
+                use_expert_gate=False,
                 use_qk_norm=True,
-                use_attn_gate=True,
+                use_attn_gate=False,
                 dropout=dropout,
                 idx=str(idx)
             )
