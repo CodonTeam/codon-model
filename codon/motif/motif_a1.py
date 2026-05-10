@@ -1,6 +1,6 @@
 from codon.base import *
 
-from codon.block.transformer import TransformerMoEDecoder
+from codon.block.transformer import TransformerDenseDecoder
 from codon.block.embedding   import RotaryEmbedding
 
 from .base import CausalLanguageModel, CausalLanguageModelOutput
@@ -12,29 +12,27 @@ from dataclasses import dataclass
 class MotifA1(CausalLanguageModel):
     def __init__(
         self,
-        vocab_size: int = 32000,
+        vocab_size: int = 2**14,
         model_dim: int = 768,
-        num_layers: int = 8,
+        num_layers: int = 12,
         num_heads: int = 8,
         num_kv_heads: int = 2,
+        mlp_ratio: float = 8/3,
+        use_mlp_gate: bool = True,
         dropout: float = 0.1,
-        tie_weights: bool = False
+        tie_weights: bool = True
     ):
         super().__init__()
-
         self.token_emb = nn.Embedding(vocab_size, model_dim)
         self.position_emb = RotaryEmbedding(model_dim // num_heads)
         self.dropout = nn.Dropout(dropout)
-
         self.decoder = nn.ModuleList([
-            TransformerMoEDecoder(
+            TransformerDenseDecoder(
                 model_dim=model_dim,
                 num_heads=num_heads,
                 num_kv_heads=num_kv_heads,
-                top_k=1,
-                num_experts=3,
-                num_shared_experts=1,
-                use_expert_gate=False,
+                mlp_ratio=mlp_ratio,
+                use_mlp_gate=use_mlp_gate,
                 use_qk_norm=True,
                 use_attn_gate=False,
                 dropout=dropout,
@@ -48,7 +46,7 @@ class MotifA1(CausalLanguageModel):
 
         if tie_weights:
             self.proj_out.weight = self.token_emb.weight
-
+        
         self.apply(self._init_weights)
     
     def _init_weights(self, module):

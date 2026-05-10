@@ -35,4 +35,9 @@ setup(
     packages=find_packages(),
     install_requires=get_requirements(),
     python_requires='>=3.8',
+    entry_points={
+        'console_scripts': [
+            'codon = codon.cli:main',
+        ],
+    },
 )
