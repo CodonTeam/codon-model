@@ -377,7 +377,6 @@ class MotifV1(AutoencoderVisionModel):
             AutoVisionEncoderOutput: Output containing reconstructed image and latent details.
         '''
         encoder_out = self.encoder(splited_image, grid_shape)
-        decoder_out = self.decoder(encoder_out.z_q, grid_shape)
 
         return AutoVisionEncoderOutput(
             z_q=encoder_out.z_q,

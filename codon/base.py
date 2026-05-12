@@ -151,8 +151,12 @@ class BasicModel(nn.Module):
                 state_dict = state_dict['model_state_dict']
             elif 'state_dict' in state_dict:
                 state_dict = state_dict['state_dict']
+            elif 'model' in state_dict:
+                state_dict = state_dict['model']
         
-        self.load_state_dict(state_dict, strict=strict)
+        clean_state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+        
+        self.load_state_dict(clean_state_dict, strict=strict)
         return self
     
     def save_pretrained(

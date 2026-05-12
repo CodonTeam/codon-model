@@ -69,7 +69,7 @@ class SinusoidalEmbedding(BasicEmbedding):
         pe[:, 1::2] = torch.cos(position * div_term)
         
         pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)
+        self.register_buffer('pe', pe, persistent=False)
 
     def forward(self, x: torch.Tensor, positions: torch.Tensor = None, start_pos: int = 0) -> torch.Tensor:
         '''
@@ -132,8 +132,8 @@ class BasicRotaryEmbedding(BasicEmbedding):
 
         emb = torch.cat((freqs, freqs), dim=-1)
 
-        self.register_buffer('cos_cached', emb.cos())
-        self.register_buffer('sin_cached', emb.sin())
+        self.register_buffer('cos_cached', emb.cos(), persistent=False)
+        self.register_buffer('sin_cached', emb.sin(), persistent=False)
 
     def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
         '''
