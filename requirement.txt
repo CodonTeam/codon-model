@@ -6,5 +6,3 @@ pandas
 numpy
 pyarrow
 pillow
-atexit
-signal

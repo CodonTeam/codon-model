@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Union, Literal, Sequence
 import copy
 import torch
+import json
 
 MaskPolicy = Union[Literal['all', 'none', 'content', 'thought', 'fim'], Sequence[bool]]
 
@@ -194,6 +195,8 @@ class Session:
         self, message: dict,
         mask: Optional[MaskPolicy] = None,
     ) -> 'Session':
+        if 'tool_calls' in message.keys() and isinstance(message['tool_calls'], str):
+            message['tool_calls'] = json.loads(message['tool_calls'])
         role = self._ROLE_ALIAS.get(message.get('role', 'user'), message.get('role', 'user'))
         ids = self._encode_message(message)
         msg = Message(ids=ids, role=role)

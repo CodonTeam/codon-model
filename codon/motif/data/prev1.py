@@ -9,6 +9,7 @@ from pathlib import Path
 from typing  import Any, Optional, Dict, Union
 from tqdm    import tqdm
 
+
 class MotifPrev1(CodonDataset):
     '''
     A concrete implementation of CodonDataset for loading Motif data from a directory.
