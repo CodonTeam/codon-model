@@ -130,14 +130,18 @@ class Session:
         self.policy[self._ROLE_ALIAS.get(role, role)] = policy
         return self
 
-    def _encode_message(self, message: dict) -> list[int]:
+    def _encode_message(self, message: dict, tokenize: bool=False) -> list[int]:
         msg = copy.deepcopy(message)
         role = self._ROLE_ALIAS.get(msg.get('role', 'user'), msg.get('role', 'user'))
         msg['role'] = role
         if role == 'model':
             msg.setdefault('thought', None)
             msg.setdefault('reasoning_content', None)
-        return self.tokenizer.apply_chat_template([msg], add_generation_prompt=False)
+        return self.tokenizer.apply_chat_template(
+            [msg],
+            add_generation_prompt=False,
+            tokenize=tokenize
+        )
 
     def _apply_policy(self, msg: Message, policy: MaskPolicy) -> None:
         if isinstance(policy, (list, tuple)):
