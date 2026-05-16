@@ -1,4 +1,4 @@
-from codon.utils.dataset.base import CodonDataset
+from codon.utils.data.base import CodonDataset
 from transformers import PreTrainedTokenizerFast
 from codon.utils.tokens import PackedTokenizer
 

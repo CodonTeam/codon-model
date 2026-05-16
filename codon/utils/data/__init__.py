@@ -1,22 +1,18 @@
 from .flatdata import FlatDataset, FlatColumnDataset, MappedFlatDataset
-from .corpus   import FileType, CorpusData, CorpusDataset
 from .image    import ImageDataset, TarImageDataset, ImageDatasetItem
 
 from .dataviewer import DataViewer, preview_fields
 
-from .conflux.base import ConfluxDataset
+from .base import CodonDataset
 
 __all__ = [
+    'CodonDataset',
     'FlatDataset',
     'FlatColumnDataset',
     'MappedFlatDataset',
-    'FileType',
-    'CorpusData',
-    'CorpusDataset',
     'ImageDataset',
     'TarImageDataset',
     'ImageDatasetItem',
     'DataViewer',
-    'preview_fields',
-    'ConfluxDataset'
+    'preview_fields'
 ]

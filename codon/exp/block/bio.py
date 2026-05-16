@@ -3,7 +3,7 @@ from codon.base import *
 from typing import List, Optional
 from dataclasses import dataclass
 
-from codon.utils.dataset.base import CodonDataset
+from codon.utils.data.base import CodonDataset
 
 @dataclass
 class EABStats:
