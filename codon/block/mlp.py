@@ -86,3 +86,41 @@ class MLP(BasicModel):
             x = self.dropout(x)
             x = self.fc2(x)
             return x
+    
+    @staticmethod
+    def SwiGLU(
+        in_features: int,
+        hidden_features: int = None,
+        out_features: int = None,
+        bias: bool = False,
+        dropout: float = 0.0,
+    ) -> 'MLP':
+        '''
+        Factory method to create a SwiGLU MLP module.
+        
+        SwiGLU formulation:
+            output = down_proj(SiLU(gate_proj(x)) * up_proj(x))
+            
+        Args:
+            in_features (int): Input dimension.
+            hidden_features (int): Intermediate dimension (gate & up proj).
+            out_features (int, optional): Output dimension. Defaults to in_features.
+            bias (bool, optional): Whether to use bias. LLMs typically set False. Defaults to False.
+            dropout (float, optional): Dropout rate. Usually 0.0 for SwiGLU. Defaults to 0.0.
+            
+        Returns:
+            MLP: Configured SwiGLU module.
+        '''
+        if hidden_features is None:
+            h = int(in_features * 8 / 3)
+            hidden_features = (h + 127) // 128 * 128
+            
+        return MLP(
+            in_features=in_features,
+            hidden_features=hidden_features,
+            out_features=out_features,
+            bias=bias,
+            use_gate=True,
+            dropout=dropout,
+            act_layer='silu'
+        )
