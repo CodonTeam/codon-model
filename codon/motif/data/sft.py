@@ -1,4 +1,3 @@
-# codon/data/motif_sft.py
 import json
 import os
 import random

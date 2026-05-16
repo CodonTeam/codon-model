@@ -1,8 +1,8 @@
 import random
-from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
+from typing import Any, Callable, Dict, Iterator, List, Optional, Protocol, runtime_checkable
 
 import codon
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, IterableDataset
 
 
 @runtime_checkable
@@ -95,9 +95,15 @@ class TorchDatasetWrapper(Dataset):
         '''
         Returns a dictionary containing the state of the dataset wrapper.
 
+        If the wrapped dataset implements the :class:`Stateful` protocol,
+        the call is delegated to it; otherwise the wrapper's own state
+        (shuffle indices and seek offset) is returned.
+
         Returns:
             Dict[str, Any]: The state dictionary.
         '''
+        if isinstance(self.dataset, Stateful):
+            return self.dataset.state_dict()
         return {
             'indices': self._indices,
             'seek_offset': self._seek_offset
@@ -107,9 +113,16 @@ class TorchDatasetWrapper(Dataset):
         '''
         Restores the state of the dataset wrapper.
 
+        If the wrapped dataset implements the :class:`Stateful` protocol,
+        the call is delegated to it; otherwise the wrapper's own state is
+        restored.
+
         Args:
             state (Dict[str, Any]): The state dictionary to restore from.
         '''
+        if isinstance(self.dataset, Stateful):
+            self.dataset.load_state_dict(state)
+            return
         self._indices = state.get('indices', None)
         self._seek_offset = state.get('seek_offset', 0)
 
@@ -157,11 +170,21 @@ class TorchDatasetWrapper(Dataset):
         return DataLoader(self, batch_size=batch_size, shuffle=shuffle, **kwargs)
 
 
-class CodonDataset:
+class CodonBasicDataset:
     '''
-    Base class for all Codon datasets.
+    Base class for all Codon data structures.
 
-    This abstract class defines the interface that all datasets must implement.
+    This class serves as the root base for both map-style datasets
+    (CodonDataset) and iterable-style datasets (CodonIterableDataset).
+    '''
+    pass
+
+
+class CodonDataset(CodonBasicDataset):
+    '''
+    Base class for all Codon map-style datasets.
+
+    This abstract class defines the interface that all map-style datasets must implement.
     It provides a common structure for accessing data rows and length.
     '''
 
@@ -220,6 +243,162 @@ class CodonDataset:
         wrapper = TorchDatasetWrapper(self, collate_fn)
         if shuffle:
             wrapper.shuffle(seed)
+        if seek > 0:
+            wrapper.seek(seek)
+        return wrapper
+
+
+class TorchIterableDatasetWrapper(IterableDataset):
+    '''
+    A wrapper class to convert a CodonIterableDataset into a PyTorch compatible IterableDataset.
+
+    Attributes:
+        dataset (CodonIterableDataset): The underlying CodonIterableDataset instance.
+        collate_fn (Optional[Callable]): An optional function to process or format
+            the dataset items.
+        _seek_offset (int): The initial sequential read offset for the current iterator.
+        _yielded_count (int): The number of items yielded by the current iterator.
+    '''
+
+    def __init__(self, dataset: 'CodonIterableDataset', collate_fn: Optional[Callable] = None) -> None:
+        '''
+        Initializes the TorchIterableDatasetWrapper.
+
+        Args:
+            dataset (CodonIterableDataset): The dataset to wrap.
+            collate_fn (Optional[Callable]): Optional function applied to each item.
+        '''
+        self.dataset = dataset
+        self.collate_fn = collate_fn
+        self._seek_offset: int = 0
+        self._yielded_count: int = 0
+
+    def seek(self, offset: int) -> 'TorchIterableDatasetWrapper':
+        '''
+        Sets the sequential read offset for the dataset.
+
+        Args:
+            offset (int): The number of items to skip.
+
+        Returns:
+            TorchIterableDatasetWrapper: self for method chaining.
+        '''
+        self._seek_offset = max(0, offset)
+        self._yielded_count = 0
+        return self
+
+    def state_dict(self) -> Dict[str, Any]:
+        '''
+        Returns a dictionary containing the state of the dataset wrapper.
+
+        If the wrapped dataset implements the :class:`Stateful` protocol,
+        the call is delegated to it; otherwise the wrapper records the
+        cumulative number of items consumed so far.
+
+        Returns:
+            Dict[str, Any]: The state dictionary.
+        '''
+        if isinstance(self.dataset, Stateful):
+            return self.dataset.state_dict()
+        return {
+            'seek_offset': self._seek_offset + self._yielded_count
+        }
+
+    def load_state_dict(self, state: Dict[str, Any]) -> None:
+        '''
+        Restores the state of the dataset wrapper.
+
+        If the wrapped dataset implements the :class:`Stateful` protocol,
+        the call is delegated to it; otherwise the wrapper's own seek
+        offset is restored.
+
+        Args:
+            state (Dict[str, Any]): The state dictionary to restore from.
+        '''
+        if isinstance(self.dataset, Stateful):
+            self.dataset.load_state_dict(state)
+            self._yielded_count = 0
+            return
+        self._seek_offset = state.get('seek_offset', 0)
+        self._yielded_count = 0
+
+    def __iter__(self) -> Iterator[Any]:
+        '''
+        Returns an iterator that yields elements from the underlying dataset
+        starting from the defined seek offset.
+
+        Returns:
+            Iterator[Any]: The item iterator.
+        '''
+        self._yielded_count = 0
+        iterator = self.dataset.iter_from(self._seek_offset)
+        for item in iterator:
+            if self.collate_fn is not None:
+                item = self.collate_fn(item)
+            yield item
+            self._yielded_count += 1
+
+    def loader(self, batch_size: int = 1, **kwargs: Any) -> DataLoader:
+        '''
+        Creates a PyTorch DataLoader from this wrapped dataset.
+
+        Args:
+            batch_size (int): How many samples per batch to load. Defaults to 1.
+            **kwargs: Additional keyword arguments to pass to DataLoader.
+
+        Returns:
+            DataLoader: A PyTorch DataLoader instance.
+        '''
+        return DataLoader(self, batch_size=batch_size, **kwargs)
+
+
+class CodonIterableDataset(CodonBasicDataset):
+    '''
+    Base class for all Codon iterable datasets.
+
+    This abstract class defines the interface that all iterable datasets must implement.
+    It provides a common structure for sequential data access with support for zero-overhead
+    seeking.
+    '''
+
+    def iter_from(self, offset: int) -> Iterator[Any]:
+        '''
+        Returns an iterator that starts yielding items after skipping the given offset.
+        Subclasses must implement this method to avoid computation overhead when skipping.
+
+        Args:
+            offset (int): The number of items to skip.
+
+        Returns:
+            Iterator[Any]: The data iterator starting from the offset.
+
+        Raises:
+            NotImplementedError: If the method is not implemented by the subclass.
+        '''
+        raise NotImplementedError
+
+    def __iter__(self) -> Iterator[Any]:
+        '''
+        Returns an iterator starting from the beginning.
+
+        Returns:
+            Iterator[Any]: The data iterator.
+        '''
+        return self.iter_from(0)
+
+    def compose(self, collate_fn: Optional[Callable] = None, seek: int = 0, **kwargs: Any) -> TorchIterableDatasetWrapper:
+        '''
+        Wraps the dataset into a PyTorch compatible IterableDataset.
+
+        Args:
+            collate_fn (Optional[Callable]): An optional function to process each item.
+            seek (int): The initial read offset. Defaults to 0.
+            **kwargs: Additional kwargs.
+
+        Returns:
+            TorchIterableDatasetWrapper: A PyTorch IterableDataset instance wrapping this dataset.
+        '''
+        wrapper = TorchIterableDatasetWrapper(self, collate_fn)
         if seek > 0:
             wrapper.seek(seek)
         return wrapper
