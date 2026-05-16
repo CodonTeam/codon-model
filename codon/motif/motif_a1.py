@@ -12,17 +12,16 @@ from dataclasses import dataclass
 class MotifA1(CausalLanguageModel):
     def __init__(
         self,
-        vocab_size: int = 2**14,
+        vocab_size: int = 2**13,
         model_dim: int = 768,
-        num_layers: int = 12,
+        num_layers: int = 16,
         num_heads: int = 8,
         num_kv_heads: int = 2,
-        mlp_ratio: float = 8/3,
-        use_mlp_gate: bool = True,
         dropout: float = 0.1,
         tie_weights: bool = True
     ):
         super().__init__()
+        self.vocab_size = vocab_size
         self.token_emb = nn.Embedding(vocab_size, model_dim)
         self.position_emb = RotaryEmbedding(model_dim // num_heads)
         self.dropout = nn.Dropout(dropout)
@@ -31,11 +30,12 @@ class MotifA1(CausalLanguageModel):
                 model_dim=model_dim,
                 num_heads=num_heads,
                 num_kv_heads=num_kv_heads,
-                mlp_ratio=mlp_ratio,
-                use_mlp_gate=use_mlp_gate,
                 use_qk_norm=True,
                 use_attn_gate=False,
+                use_swiglu=True,
                 dropout=dropout,
+                attn_bias=False,
+                attn_type='mha' if (idx + 1) % 4 == 0 else 'gla',
                 idx=str(idx)
             )
             for idx in range(num_layers)

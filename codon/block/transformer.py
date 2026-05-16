@@ -4,7 +4,7 @@ from typing import Union, Optional, Tuple
 
 from codon.utils.safecode  import safecode
 from codon.block.embedding import BasicEmbedding
-from codon.block.attention import MultiHeadAttention, AttentionOutput
+from codon.block.attention import MultiHeadAttention, AttentionOutput, LinearAttention, GatedLinearAttention
 from codon.block.mlp       import MLP
 from codon.block.moe       import MoE, MoEOutput
 
@@ -75,6 +75,8 @@ class _TransformerDecoder(BasicModel):
         use_qk_norm=True,
         use_attn_gate=False,
         dropout=0.1,
+        attn_type: str = 'multihead',
+        attn_bias: bool=False,
         idx: Union[int, str] = None
     ):
         '''
@@ -97,17 +99,48 @@ class _TransformerDecoder(BasicModel):
         self.num_kv_heads = num_kv_heads
         self.use_qk_norm = use_qk_norm
         self.use_attn_gate = use_attn_gate
+        self.attn_bias = attn_bias
+        self.attn_type = attn_type.lower()
 
         self.attn_norm = nn.RMSNorm(model_dim)
-        self.attn = MultiHeadAttention(
-            hidden_size=model_dim,
-            num_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            use_qk_norm=use_qk_norm,
-            use_gate=use_attn_gate,
-            dropout=dropout,
-            is_causal=True
-        )
+        
+        if self.attn_type in ['multihead', 'mha']:
+            self.attn = MultiHeadAttention(
+                hidden_size=model_dim,
+                num_heads=num_heads,
+                num_kv_heads=num_kv_heads,
+                use_qk_norm=use_qk_norm,
+                use_gate=use_attn_gate,
+                dropout=dropout,
+                is_causal=True,
+                bias=attn_bias
+            )
+
+        elif self.attn_type == 'linear':
+            self.attn = LinearAttention(
+                hidden_size=model_dim,
+                num_heads=num_heads,
+                num_kv_heads=num_kv_heads,
+                use_qk_norm=use_qk_norm,
+                use_gate=use_attn_gate,
+                dropout=dropout,
+                is_causal=True,
+                bias=attn_bias
+            )
+
+        elif self.attn_type in ['gated_linear', 'gla']:
+            self.attn = GatedLinearAttention(
+                hidden_size=model_dim,
+                num_heads=num_heads,
+                num_kv_heads=num_kv_heads,
+                use_qk_norm=use_qk_norm,
+                dropout=dropout,
+                is_causal=True,
+                bias=attn_bias
+            )
+        else:
+            raise ValueError(f"Unsupported attn_type: {attn_type}. Choose from 'multihead', 'linear', or 'gated_linear'.")
+
         self.fn_norm = nn.RMSNorm(model_dim)
         self.dropout = nn.Dropout(dropout)
     
@@ -228,7 +261,11 @@ class TransformerDenseDecoder(_TransformerDecoder):
         use_mlp_gate: bool = False,
         use_qk_norm: bool = True,
         use_attn_gate: bool = False,
+        attn_type: str = 'multihead',
+        use_swiglu: bool = False,
         dropout: float = 0.1,
+        attn_bias: bool=False,
+        mlp_bias: bool=False,
         idx: Union[int, str] = None
     ):
         '''
@@ -252,15 +289,18 @@ class TransformerDenseDecoder(_TransformerDecoder):
             use_qk_norm=use_qk_norm,
             use_attn_gate=use_attn_gate,
             dropout=dropout,
-            idx=idx
+            attn_type=attn_type,
+            idx=idx,
+            attn_bias=attn_bias
         )
         self.mlp = MLP(
             in_features=model_dim,
             hidden_features=int(model_dim * mlp_ratio),
             out_features=model_dim,
             use_gate=use_mlp_gate,
-            dropout=dropout
-        )
+            dropout=dropout,
+            bias=mlp_bias
+        ) if not use_swiglu else MLP.SwiGLU(model_dim)
     
     def flow(self, x: torch.Tensor) -> FlowOutput:
         '''
@@ -294,7 +334,9 @@ class TransformerMoEDecoder(_TransformerDecoder):
         use_expert_gate: bool = False,
         use_qk_norm: bool = True,
         use_attn_gate: bool = False,
+        attn_type: str = 'multihead',
         dropout: float = 0.1,
+        attn_bias: bool=False,
         idx: Union[int, str] = None
     ):
         '''
@@ -321,7 +363,9 @@ class TransformerMoEDecoder(_TransformerDecoder):
             use_qk_norm=use_qk_norm,
             use_attn_gate=use_attn_gate,
             dropout=dropout,
-            idx=idx
+            attn_type=attn_type,
+            idx=idx,
+            attn_bias=attn_bias
         )
         self.moe = MoE(
             model_dim=model_dim,
